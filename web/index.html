@@ -27,6 +27,10 @@
 	#status.error { border-color: #b44; color: #f99; }
 
 	/* Tiling area: windows and gutters are positioned by sangband.js */
+	/* z-term: row 0 is drawn on the canvas too; the prompt box covers it exactly (RVIP W4) */
+	#t-main .wm-topl { right: 0; max-width: none; height: var(--cell-h, 20px); line-height: var(--cell-h, 20px);
+		font-size: var(--cell-font, 14px); font-family: var(--cell-face, "DejaVu Sans Mono", Menlo, Consolas, monospace);
+		white-space: pre; overflow: hidden; padding: 0; border: 0; background: #000; color: #fff; }
 	#game { position: absolute; left: 0; right: 0; top: 32px; bottom: 0; overflow: hidden; background: var(--gut); }
 	.win { position: absolute; background: #000; border: 1px solid var(--line); display: flex; flex-direction: column; overflow: hidden; }
 	.win > .t { flex: none; display: flex; align-items: center; font-size: 11px; height: 20px; padding: 0 2px 0 6px;
@@ -100,11 +104,11 @@
 		<button id="btn-export" title="Download your savefile">Export save</button>
 		<button id="btn-import" title="Load a savefile from disk">Import save</button>
 		<hr>
-		<button id="btn-new" title="Delete the saved character in this browser">New character</button>
+		<button id="btn-new" title="Delete the saved characters in this browser and start a new one">New game</button>
 	</div>
 	<input type="file" id="import-file" hidden>
 	<span class="sp"></span>
-	<span class="hint"><kbd>H</kbd> explore · <kbd>&lt;</kbd> <kbd>&gt;</kbd> walk to stairs · <kbd>Enter</kbd> menu · <kbd>?</kbd> command help · <kbd>Esc</kbd> cancel</span>
+	<span class="hint"><kbd>H</kbd> explore · <kbd>i</kbd> inventory · <kbd>Enter</kbd> command menu · <kbd>?</kbd> command help · <kbd>&lt;</kbd> <kbd>&gt;</kbd> walk to stairs</span>
 </div>
 
 <div id="status">Loading Sangband…</div>

@@ -50,11 +50,9 @@ try {
 	await page.reload();
 	await page.waitForFunction(() => window.__shadowReady && window.__screen(0).join('').includes('Press any key'), null, { timeout: 30000 });
 	await type(page, ' ');
-	// The savefile menu lists the character as c)
-	await waitText(page, /c\) Tester/);
-	await type(page, 'c');
+	// The newest living character loads by itself (no savefile menu, stage 5)
 	await waitText(page, /Tester[\s\S]*(Town|Lev \d)/);
-	ok(true, 'reload: Tester restored');
+	ok(!/New Character/.test(await screen(page)), 'reload: Tester restored without the start menu');
 	await snap(page, 's1-restored');
 	ok(realErrors(errors).length === 0, 'no console errors ' + JSON.stringify(realErrors(errors)));
 	console.log('wiped', (await wipeDbs(page)).length, 'dbs');

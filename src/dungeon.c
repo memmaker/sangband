@@ -3723,6 +3723,11 @@ void play_game(bool new_game)
 			/* Messages are no longer silenced */
 			character_silent = 0;
 
+#ifdef USE_WEB
+			/* Web: a reload continues the living character at once */
+			if (!p_ptr->is_dead) break;
+#endif
+
 			/* Display the character */
 			display_player(0, TRUE);
 

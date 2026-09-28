@@ -151,6 +151,8 @@ extern s16b map_rows;
 extern s16b map_cols;
 #ifdef USE_WEB
 extern int web_map_step, web_map_vstep;
+extern void web_sync_files(void);
+extern void web_game_end(int dead);
 #endif
 extern bool more_tall_display;
 extern bool map_display_precise_fit;

@@ -33,14 +33,37 @@
 	function $(id) { return document.getElementById(id); }
 
 	/* Saves, export/import, new game, help and crashes: the shared rvip-app.js */
+	/*
+	 * Sangband names a savefile after the character (lib/save/0.<Name>) and
+	 * lists them in lib/save/user.0.svg, newest first; the game loads the
+	 * newest living one at start.  Export: every save + the list as one JSON
+	 * bundle.  Import: such a bundle, or a single savefile (0.<Name>,
+	 * sangband-<Name>.sav), which then heads the list.
+	 */
+	var SAVE_DIR = '/sangband/lib/save/';
 	var app = RvipApp({
 		name: 'sangband',
-		save: function () { return saveFilePath() || null; },
+		save: function () { return saveFiles(); },
+		root: SAVE_DIR,
 		clear: removeSaves,
-		put: function (file, data) { Module.FS.mkdirTree('/sangband/lib/save'); Module.FS.writeFile('/sangband/lib/save/' + SAVE_NAME, data); },
-		exportName: function (p) { return 'sangband-' + p.split('/').pop().replace(/^\d+\./, '') + '.sav'; },
+		put: putSave,
+		noSave: 'There is no saved character yet (Ctrl-S saves).',
 		flush: function (done) { if (Module._web_request_save) Module._web_request_save(); setTimeout(done, 1500); },
+		helpText: 'Press ? in the game for its own help.'
 	});
+
+	function putSave(file, data) {
+		var FS = Module.FS, n = file.name.split('/').pop();
+		FS.mkdirTree(SAVE_DIR);
+		if (n === 'user.0.svg') { FS.writeFile(SAVE_DIR + n, data); return; }
+		/* a savefile: 0.<Name> (also from sangband-<Name>.sav); without a list
+		   (a lone file) it gets one, so the game loads it at start */
+		var m = /^(?:sangband-)?(?:\d+\.)?([A-Za-z0-9_-]+)(?:\.sav)?$/.exec(n);
+		if (!m) return 'Not a Sangband savefile name: ' + n + ' (expected 0.<Name>, sangband-<Name>.sav or a sangband-save.json bundle).';
+		FS.writeFile(SAVE_DIR + '0.' + m[1], data);
+		if (!FS.analyzePath(SAVE_DIR + 'user.0.svg').exists)
+			FS.writeFile(SAVE_DIR + 'user.0.svg', '1' + m[1] + '@' + m[1] + ' (imported)\n');
+	}
 
 	var row0 = [];   /* the main term's message row (row 0), for RvipWM.prompt */
 
@@ -211,6 +234,8 @@
 			font = Math.floor(Math.min(ch * 0.8, cw / 0.62));
 			/* text mode: cells from the map font, so wide fonts do not overlap */
 			if (!tilesOn()) { cw = Math.ceil(measure(font, 0)); ch = Math.round(font * 1.3); }
+			/* tile mode: the cells are the grid's; a wide font gets smaller to fit them */
+			else while (font > 6 && measure(font, 0) > cw) font--;
 			/* The game fits its map view to the term (web_set_view()); 80x24 at least */
 			cols = clamp(Math.floor(box.w / cw), 80, 255);
 			rows = clamp(Math.floor(box.h / ch), 24, 255);
@@ -233,6 +258,13 @@
 		var sc = Math.min(1, box.w / w, box.h / h);
 		T.cv.style.width = (w * sc) + 'px';
 		T.cv.style.height = (h * sc) + 'px';
+		if (!i) {
+			/* the prompt box over row 0 (RvipWM.prompt): one cell row as shown, the map term's font */
+			var m = $('t-main');
+			m.style.setProperty('--cell-h', (T.ch * sc) + 'px');
+			m.style.setProperty('--cell-font', (T.font * sc) + 'px');
+			m.style.setProperty('--cell-face', T.face);
+		}
 	}
 
 	/* (Re)size one term's canvas; resizing the canvas also blanks it */
@@ -385,7 +417,7 @@
 	}
 
 	/* Sound effects (lib/xtra/sound/sound.cfg) and town music, both off by default */
-	var audio = { sound: false, music: false, cfg: null, cache: {}, depth: -1, song: null };
+	var audio = { sound: false, music: false, cfg: null, cache: {}, depth: -1, song: null, have: {} };
 
 	/* sound.cfg sits in the preloaded lib (a fetched .cfg is a download prompt) */
 	function loadSoundCfg() {
@@ -399,7 +431,7 @@
 	}
 
 	function updateMusic() {
-		if (audio.music && audio.depth === 0) {
+		if (audio.music && audio.have.music && audio.depth === 0) {
 			/* made on first use: no music fetch at page load */
 			if (!audio.song) { audio.song = new Audio('music/town.ogg'); audio.song.loop = true; }
 			audio.song.play().catch(function () { });
@@ -461,7 +493,7 @@
 	var qb = {
 		sound: function (name) {
 			if (!audio.cfg) loadSoundCfg();
-			var files = audio.sound && audio.cfg[name];
+			var files = audio.sound && audio.have.sound && audio.cfg[name];
 			if (!files) return;
 			var f = files[Math.floor(Math.random() * files.length)];
 			if (!audio.cache[f]) audio.cache[f] = new Audio('sound/' + f);
@@ -587,17 +619,15 @@
 
 		sync: function () { app.sync(); },
 
+		/* The game ended (quit_aux): death after tombstone and scores, or save + quit */
 		quit: function (msg, dead) {
 			app.running = false;
-			/* Death: the game showed tombstone + scores; straight into a new game */
-			if (dead && !msg) {
-				app.status('Starting a new game…');
-				app.sync(function () { location.reload(); });
-				return;
-			}
 			app.sync();
-			$('overlay-msg').textContent = msg ? msg : 'Your game has been saved.';
+			/* dead: 1 died, 0 saved + quit, -1 left before playing (Esc at the start menu) */
+			$('overlay-msg').textContent = msg ? msg : dead > 0 ? 'Your character has died. Play again to roll a new one.' :
+				dead === 0 ? 'Your game has been saved. Play again to continue.' : 'Sangband has ended.';
 			$('overlay').hidden = false;
+			$('btn-restart').focus();
 		}
 	};
 
@@ -719,25 +749,23 @@
 
 	function removeSaves() {
 		listFiles().forEach(function (p) {
-			if (p.indexOf('/sangband/lib/save/') === 0) Module.FS.unlink(p);
+			if (p.indexOf(SAVE_DIR) === 0) Module.FS.unlink(p);
 		});
 	}
 
-	function saveFilePath() {
-		var files = listFiles().filter(function (p) {
-			return p.indexOf('/sangband/lib/save/') === 0 && !/\.(new|old)$/.test(p);
-		});
-		return files[0];
+	/* The savefiles (0.<Name>) and their list (user.0.svg) */
+	function saveFiles() {
+		return listFiles().filter(function (p) {
+			return p.indexOf(SAVE_DIR) === 0 && /^(0\.[^.]+|user\.0\.svg)$/.test(p.slice(SAVE_DIR.length));
+		}).filter(function (p, i, a) { return !/svg$/.test(p) || a.length > 1; });
 	}
-
-	/* uid 0 in Emscripten; see process_player_name() */
-	var SAVE_NAME = '0.PLAYER';
 
 	/* ---------- startup ---------- */
 
 	window.Module = {
 		qb: qb,
-		arguments: ['-u' + 'PLAYER'],
+		/* no -u: the game loads the newest living character (user.0.svg) */
+		arguments: [],
 		noInitialRun: false,
 		preRun: [function () {
 			if (!tilesDone) {
@@ -809,6 +837,16 @@
 			};
 		});
 		renderAudio();
+		/* Only what this build ships (audio.json from build.sh): nothing missing is ever fetched */
+		fetch('audio.json').then(function (r) { return r.json(); }).catch(function () { return {}; }).then(function (have) {
+			['sound', 'music'].forEach(function (k) {
+				var c = $('chk-' + k);
+				audio.have[k] = !!have[k];
+				c.disabled = !have[k];
+				if (!have[k]) c.parentNode.title = 'Not in this build yet';
+			});
+			updateMusic();
+		});
 
 		/* Buttons never take the keyboard focus away from the game */
 		document.querySelectorAll('button').forEach(function (b) {

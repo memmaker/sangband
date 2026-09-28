@@ -210,3 +210,64 @@
   leaves the tile's lower rows until the next redraw; display_map (`M`)
   draws 1-cell tiles (small); not checked in the Mac pane yet.
 - **Next**: stage 5 (web page: windows layout, deploy).
+
+### Stage 5 (web page): done 2026-09-28 (cloud; not deployed, no ssh)
+- **Page** `web/index.html` + `web/sangband.js` (Easyband's finetuned page),
+  shared `../rvip-wm.js` / `../rvip-app.js` (never copied). Top bar: Help ·
+  File ▾ (Export save, Import save, New game) | Windows ▾ · Tiles: Gervais/None ·
+  Font (text windows) · Audio ▾; key hints `H` explore · `i` inventory ·
+  `Enter` command menu · `?` command help · `<` `>` stairs. Map font select on
+  the Map title bar (text mode only; text-mode cells from the font, tile mode
+  shrinks a wide font to the grid cells). A−/A+ per window (WM `state.fs`),
+  Map A−/A+ = tile zoom 1..4 (text mode: cell steps).
+- **Windows** (terms 0..6 = Map, Inventory, Messages, Visible, Recall,
+  Equipment, Character; `web_window_flags[]`): default on Map, Inventory,
+  Visible, Messages; the rest via Windows ▾ (all filled by the game).
+  Messages fill from the top (`fix_message()` under `USE_WEB`, leading blank
+  birth separators skipped). Sub-window resize at the prompt refills at once
+  (`window_stuff()` after `web_apply_layout()`). Prompt box over row 0: CSS
+  vars `--cell-h/-font/-face` set in `fitCanvas()` (follows the CSS scale).
+- **Saves**: no `-u`, no default `user_name()` under `USE_WEB` (`main.c`):
+  `savefile_load(FALSE)` loads the newest living character of `user.0.svg`;
+  the loaded-character sheet ("'Q' to quit, 'C' ...") is skipped for the
+  living (`dungeon.c` `play_game()`). `save_player()` ends with
+  `web_sync_files()`. Export = JSON bundle `sangband-save.json`
+  (`0.<Name>`… + `user.0.svg`, RvipApp `root` = save dir); Import takes the
+  bundle or a lone `0.<Name>` / `sangband-<Name>.sav` (writes a one-line
+  `user.0.svg` if none). New game clears `lib/save` only. Autosave: Ctrl-S
+  pushed at the idle prompt every 2 min / tab hidden (map stays on screen).
+- **Game end**: `web_game_end(p_ptr->is_dead)` right after `play_game()`
+  (`cleanup_angband()` frees `p_ptr` before `quit()`), `hook_quit` passes
+  -1/0/1 → overlay "Sangband has ended" + died / saved text + Play again.
+- **Help** `help.html` = `web/help-stub.html` until stage 6's
+  `web/make-help.py` exists (build.sh uses that when present). **Audio**:
+  build.sh writes `audio.json` (`sound`/`music` true only if `web/sound`,
+  `web/music` exist); the checkboxes stay disabled otherwise, nothing
+  missing is fetched (stage 6: add the dirs, sound code already in the page).
+- **Deploy**: `web/deploy.sh` (guard: `git fetch origin`, clean, HEAD =
+  `origin/main`; rsync `dist/` to ruzzoli.de:/var/www/ruzzoli.de/roguelikes/sangband)
+  — created, NOT run (no ssh in the cloud).
+- **Tested** (headless Chromium, local `web/dist`): `web/test/stage5.mjs` 52
+  checks = W10 checklist: birth, tiles, every window filled (Recall via look
+  after `^A s`), item colours, top bar order + hints, Windows ▾, prompt box
+  geometry + hide on key, shop (BFS walk in text mode), Help/Escape, Enter
+  menu, `>` descend, zoom x3 keeps `@` centred while exploring, gutter drag,
+  A+ on one window only, rename (no key leak), both font choosers, Ctrl-S +
+  IndexedDB, reload loads Tester by itself, layout/titles/sizes/font survive
+  reload, autosave (mtime, map untouched), options 1-5/A/D/H no crash, Export
+  bundle, New game, Import bundle, Import lone savefile, Ctrl-X → Play again →
+  continues, death (debug DL60 + summons) → tombstone → Play again → start
+  menu, no console errors, no 4xx. `web/test/resize.mjs`: 1000×650 →
+  1440×900 → 1200×750 with the inventory prompt open (old canvas CSS-scaled,
+  applied at the prompt) → 760×500 → 1440×900: every canvas 1:1, redrawn.
+  stage1-4 tests still pass (stage1 now expects no start menu on reload).
+- **For the Mac check**: look at the page in the pane (layout, font sizes of
+  the sidebar at small windows: at 760×500 tile cells are 6×12 px, sidebar
+  text ~9 px), fonts from `../fonts` (local test linked roguelikes/fonts),
+  real key input (numpad, Shift+keypad), the tile zoom, the death screen
+  flow by hand, and deploy with `sh web/deploy.sh` once pushed, then
+  https://ruzzoli.de/roguelikes/sangband/.
+- **Open**: map window narrower than 80 cells shows the main term CSS-scaled
+  (80×24 minimum, W3); Messages keeps the game's blank birth separators
+  between lines; help is a stub (stage 6); no mouse on sub-windows.
+- **Next**: stage 6 (docs + sound: make-help.py, sound/music dirs → audio.json).

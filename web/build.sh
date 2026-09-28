@@ -30,6 +30,13 @@ emcc -O2 -fcommon -std=gnu99 -DUSE_WEB -Isrc \
 	--preload-file web/stage/lib@/sangband/lib
 
 cp web/index.html web/sangband.js web/tiles.png "$OUT/"
+# Help: the game guide (make-help.py, stage 6), else a short stand-in
+if [ -f web/make-help.py ]; then python3 web/make-help.py > "$OUT/help.html"; else cp web/help-stub.html "$OUT/help.html"; fi
+# Audio the page may fetch: only what ships (nothing missing is requested)
+SND=false; MUS=false
+if [ -d web/sound ]; then cp -R web/sound "$OUT/"; SND=true; fi
+if [ -d web/music ]; then cp -R web/music "$OUT/"; MUS=true; fi
+echo "{\"sound\": $SND, \"music\": $MUS}" > "$OUT/audio.json"
 # Font choosers: the index page's fonts/*.woff (the page loads ../fonts/)
 FONTS="${FONTS:-$HOME/Games/roguelikes-index/fonts}"
 [ -d "$FONTS" ] || FONTS=/home/user/roguelikes/fonts

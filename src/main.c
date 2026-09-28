@@ -337,7 +337,11 @@ int main(int argc, char *argv[])
 #ifdef SET_UID
 
 	/* Get the "user name" as a default player name */
+#ifndef USE_WEB
 	user_name(op_ptr->full_name, sizeof(op_ptr->full_name), player_uid);
+#else
+	/* Web: no name, so savefile_load() picks the newest living character (user.0.svg) */
+#endif
 
 #ifdef PRIVATE_USER_PATH
 
@@ -535,6 +539,11 @@ int main(int argc, char *argv[])
 
 	/* Play the game */
 	play_game(new_game);
+
+#ifdef USE_WEB
+	/* Tell the page how the game ended (p_ptr is gone after the cleanup) */
+	web_game_end(p_ptr->is_dead);
+#endif
 
 	/* Free resources */
 	cleanup_angband();

@@ -3068,6 +3068,11 @@ bool save_player(void)
 	/* Write to the savefile list */
 	save_savefile_names();
 
+#ifdef USE_WEB
+	/* Write the save dir back to IndexedDB */
+	web_sync_files();
+#endif
+
 	/* Return the result */
 	return (result);
 }

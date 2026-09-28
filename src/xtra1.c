@@ -3257,6 +3257,20 @@ static void fix_message(void)
 		/* Get size */
 		(void)Term_get_size(&w, &h);
 
+#ifdef USE_WEB
+		/* The history fills from the top (RVIP-Finetuning "Messages window"), no blank band first */
+		{
+			int n = message_num();
+
+			while ((n > 0) && !message_str((s16b)(n - 1))[strspn(message_str((s16b)(n - 1)), " ")]) n--;
+			if (n < h)
+			{
+				(void)Term_clear();
+				h = n;
+			}
+		}
+#endif
+
 		/* Dump messages */
 		for (i = 0; i < h; i++)
 		{

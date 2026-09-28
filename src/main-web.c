@@ -278,6 +278,9 @@ static void web_apply_layout(void)
 
 	/* New map view size: the game redraws the whole screen (command prompt) */
 	if (main_resized && character_generated) do_cmd_redraw();
+
+	/* Sub-windows refill now when idle at the command prompt (else next turn) */
+	else if (p_ptr->window && web_at_cmd()) window_stuff();
 }
 
 
@@ -568,6 +571,14 @@ static void hook_plog(cptr str)
 	if (str) js_plog(str);
 }
 
+/* How the game ended: -1 not played to the end (error, Esc at the start menu), 0 saved, 1 dead */
+static int web_end = -1;
+
+void web_game_end(int dead)
+{
+	web_end = dead ? 1 : 0;
+}
+
 static void hook_quit(cptr str)
 {
 	int i;
@@ -576,7 +587,7 @@ static void hook_quit(cptr str)
 
 	/* After death the tombstone and scores already waited for a key */
 	js_sync();
-	js_quit(str, p_ptr->is_dead);
+	js_quit(str, web_end);
 }
 
 
