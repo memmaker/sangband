@@ -2007,6 +2007,14 @@ static void process_command(void)
 			break;
 		}
 
+		/* RVIP: auto-explore ('O' also in the roguelike keyset) */
+		case 'H':
+		case 'O':
+		{
+			do_cmd_explore();
+			break;
+		}
+
 		/* Open a door or chest */
 		case 'o':
 		{
@@ -2999,7 +3007,7 @@ void process_player(void)
 	}
 
 	/* Check for "player abort" */
-	if (p_ptr->running || p_ptr->command_rep ||
+	if (p_ptr->running || auto_explore || p_ptr->command_rep ||
 	   (p_ptr->resting && !(turn & 0x7F)))
 	{
 		/* Do not wait */
@@ -3149,6 +3157,12 @@ void process_player(void)
 
 			/* Note end of rest */
 			if (!p_ptr->resting) left_panel_display(DISPLAY_REGEN, 0);
+		}
+
+		/* RVIP: auto-explore / stair walk */
+		else if (auto_explore)
+		{
+			explore_step();
 		}
 
 		/* Running */
@@ -3360,6 +3374,9 @@ static void dungeon(void)
 
 	/* Not leaving */
 	p_ptr->leaving = FALSE;
+
+	/* RVIP: the explorer forgets the old level */
+	explore_new_level();
 
 
 	/* Reset the "command" vars */

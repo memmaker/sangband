@@ -5019,6 +5019,9 @@ void disturb(int seriousness, int unused_flag)
 		cancel_running();
 	}
 
+	/* RVIP: stop auto-explore / stair walks */
+	explore_reset();
+
 	/* Cancel sneaking if requested */
 	if ((seriousness > 0) && (p_ptr->sneaking))
 	{

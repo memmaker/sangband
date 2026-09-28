@@ -141,6 +141,13 @@ EMSCRIPTEN_KEEPALIVE void web_request_save(void)
 	web_want_save = 1;
 }
 
+/* For the tests (web/test): depth << 16 | y << 8 | x of the player, -1 before play */
+EMSCRIPTEN_KEEPALIVE int web_where(void)
+{
+	if (!character_generated) return (-1);
+	return ((p_ptr->depth << 16) | (p_ptr->py << 8) | p_ptr->px);
+}
+
 
 /* Waiting for a command (the only safe moment for layout/save) */
 static bool web_at_cmd(void)

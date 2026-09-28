@@ -92,14 +92,30 @@ you in the given direction, following any bends in the corridor, until you
 either have to make a choice between two directions or are disturbed.  Most
 players run by holding down Shift and pressing a direction key.
 
+Auto-explore (H) / (O) :
+     Walks, one step per turn, towards the nearest part of the level you have
+not seen yet, or to an object you have not walked to yet.  Only grids you know
+are used; known traps, lava and shop entrances are avoided.  Closed doors are
+opened on the way, but locks are never picked: a locked or stuck door stops
+the walk and is skipped the next time.  Exploring stops as soon as a monster
+comes into view (it is named), at any new message and at any key press; press
+the key again to go on.  Exploring needs a light in the dungeon.  In the
+original keyset use H (or O); in the roguelike keyset, where H runs west,
+use O.
+
 Go up staircase (<) :
      Ascends an up staircase.  Going up a staircase will take you to a new
 dungeon level unless you are at 50 feet (level 1), in which case you will return
-to the town.  This command takes a full turn.
+to the town.  This command takes a full turn.  If you are not standing on an
+up staircase (or shaft), you walk to the nearest one you know of and stop on
+it; press < again to climb.  A disturbance (a monster moving in view) stops
+the walk; press < again to go on.
 
 Go down staircase (>) :
      Descends a down staircase.  Going down a staircase will take you to a new
-dungeon level.  This command takes a full turn.
+dungeon level.  This command takes a full turn.  If you are not standing on a
+down staircase (or shaft), you walk to the nearest one you know of and stop
+on it; press > again to descend.  In the town this finds the dungeon entrance.
 
 
 --- Special Action Commands ---

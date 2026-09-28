@@ -25,7 +25,9 @@ void do_cmd_go_up(void)
 	/* Verify stairs */
 	if (!cave_up_stairs(p_ptr->py, p_ptr->px))
 	{
-		msg_print("I see no up staircase here.");
+		/* RVIP: walk to the nearest known up staircase (and stop there) */
+		if (!auto_explore) explore_to_stairs(TRUE);
+		else msg_print("I see no up staircase here.");
 		return;
 	}
 
@@ -82,7 +84,9 @@ void do_cmd_go_down(void)
 	/* Verify stairs */
 	if (!cave_down_stairs(p_ptr->py, p_ptr->px))
 	{
-		msg_print("I see no down staircase here.");
+		/* RVIP: walk to the nearest known down staircase (and stop there) */
+		if (!auto_explore) explore_to_stairs(FALSE);
+		else msg_print("I see no down staircase here.");
 		return;
 	}
 
@@ -3584,4 +3588,316 @@ void do_cmd_rest(void)
 
 	/* Refresh XXX XXX XXX */
 	(void)Term_fresh();
+}
+
+
+/*
+ * RVIP auto-explore ('H', or 'O' in either keyset) and stair walking
+ * ('<' / '>' off the stairs).
+ *
+ * A breadth-first search over the grids the player knows, one step per
+ * game turn: process_player() calls explore_step() while "auto_explore" is
+ * set (like running), disturb() clears it.  Ported from the Easyband web
+ * port (Quickband's pathfind.c explore_step()) to Sangband's map arrays.
+ *
+ * Known grid: CAVE_MARK, or seen by the player during the walk
+ * (explore_seen[]; torch-lit floors are forgotten when view_torch_grids is
+ * off, and the explorer would walk back and forth).
+ *
+ * Never: known traps (glyphs are fine), lava, shop entrances, walls,
+ * secret doors, locked or jammed doors (never picks locks).  Rubble,
+ * water and trees are passable in Sangband and simply walked through.
+ */
+
+/* 0 = off, EXPLORE_ANY = explore, EXPLORE_UP/DOWN = walk to stairs */
+int auto_explore = 0;
+
+#define EXPLORE_ANY		1
+#define EXPLORE_UP		2
+#define EXPLORE_DOWN	3
+
+static byte explore_seen[DUNGEON_HGT_MAX][DUNGEON_WID_MAX];	/* seen during a walk */
+static byte explore_done[DUNGEON_HGT_MAX][DUNGEON_WID_MAX];	/* 1 object walked to, 2 bad door */
+static s16b explore_dist[DUNGEON_HGT_MAX][DUNGEON_WID_MAX];
+static byte explore_qy[DUNGEON_HGT_MAX * DUNGEON_WID_MAX];
+static byte explore_qx[DUNGEON_HGT_MAX * DUNGEON_WID_MAX];
+static s16b explore_msgs;	/* message count after the last step */
+
+
+/* Forget the explorer's memory (new level) */
+void explore_new_level(void)
+{
+	(void)memset(explore_seen, 0, sizeof(explore_seen));
+	(void)memset(explore_done, 0, sizeof(explore_done));
+	auto_explore = 0;
+}
+
+/* Stop walking (disturb) */
+void explore_reset(void)
+{
+	auto_explore = 0;
+}
+
+
+static bool explore_known(int y, int x)
+{
+	return ((cave_info[y][x] & (CAVE_MARK)) || explore_seen[y][x]);
+}
+
+/* Can the walk go through this grid (maybe after opening a door)? */
+static bool explore_passable(int y, int x)
+{
+	int feat = cave_feat[y][x];
+
+	if (explore_done[y][x] == 2) return (FALSE);	/* locked/stuck door */
+
+	/* Visible monsters block (unseen ones stop the walk when bumped) */
+	if ((cave_m_idx[y][x] > 0) && m_list[cave_m_idx[y][x]].ml) return (FALSE);
+
+	/* Plain closed doors are opened on the way (they all look alike) */
+	if ((feat >= FEAT_DOOR_HEAD) && (feat <= FEAT_DOOR_TAIL)) return (TRUE);
+
+	/* Walls, secret doors, trees' friends: need passable terrain */
+	if (!cave_passable_bold(y, x)) return (FALSE);
+
+	/* Shop entrances (the walk would enter the shop), lava */
+	if (cave_shop_bold(y, x) || (feat == FEAT_LAVA)) return (FALSE);
+
+	/* Known traps (a glyph of warding is harmless) */
+	if (cave_trap(y, x) && cave_visible_trap(y, x) && !cave_glyph(y, x))
+		return (FALSE);
+
+	return (TRUE);
+}
+
+/* Is this grid a target for the current walk? */
+static bool explore_target(int y, int x, int mode)
+{
+	int d;
+
+	if (mode == EXPLORE_UP) return (cave_up_stairs(y, x));
+	if (mode == EXPLORE_DOWN) return (cave_down_stairs(y, x));
+
+	/* A seen object not yet walked to */
+	if (cave_o_idx[y][x] && !explore_done[y][x])
+	{
+		s16b o = cave_o_idx[y][x];
+
+		for (; o; o = o_list[o].next_o_idx)
+			if (o_list[o].marked) return (TRUE);
+	}
+
+	/* Next to an unknown grid */
+	for (d = 0; d < 8; d++)
+	{
+		int yy = y + ddy_ddd[d], xx = x + ddx_ddd[d];
+
+		if (!in_bounds(yy, xx)) continue;
+		if (!explore_known(yy, xx)) return (TRUE);
+	}
+
+	return (FALSE);
+}
+
+
+/*
+ * One step of the walk.  Returns after taking a game turn
+ * (p_ptr->energy_use) or with auto_explore cleared.
+ */
+void explore_step(void)
+{
+	int py = p_ptr->py, px = p_ptr->px;
+	int mode = auto_explore;
+	int y, x, head = 0, tail = 0, ty = -1, tx = -1, i;
+	bool blocked = FALSE;
+
+	/* Something was said since the last step (pickup, a noise ...) */
+	if (message_num() != explore_msgs)
+	{
+		auto_explore = 0;
+		return;
+	}
+
+#ifdef USE_WEB
+	/* Paint every step: show the last one, then wait 40 ms */
+	(void)Term_fresh();
+	(void)Term_xtra(TERM_XTRA_DELAY, 40);
+#endif
+
+	/* Remember what the player sees now */
+	for (y = 0; y < dungeon_hgt; y++)
+		for (x = 0; x < dungeon_wid; x++)
+			if (cave_info[y][x] & (CAVE_SEEN | CAVE_MARK)) explore_seen[y][x] = 1;
+
+	/* Objects under the player count as visited */
+	if (cave_o_idx[py][px]) explore_done[py][px] = 1;
+
+	/* Arrived at the stairs: stop; the player presses the key again to take them */
+	if (((mode == EXPLORE_UP) && cave_up_stairs(py, px)) ||
+	    ((mode == EXPLORE_DOWN) && cave_down_stairs(py, px)))
+	{
+		auto_explore = 0;
+		return;
+	}
+
+	/* No light in the dungeon: nothing new can be seen */
+	if ((mode == EXPLORE_ANY) && p_ptr->depth && (p_ptr->cur_lite <= 0))
+	{
+		auto_explore = 0;
+		msg_print("You have no light to explore by.");
+		return;
+	}
+
+	/* Explore only: stop when a monster is in view */
+	if (mode == EXPLORE_ANY)
+	{
+		for (i = 1; i < m_max; i++)
+		{
+			monster_type *m_ptr = &m_list[i];
+			char m_name[DESC_LEN];
+
+			if (!m_ptr->r_idx || !m_ptr->ml) continue;
+			if (!player_has_los_bold(m_ptr->fy, m_ptr->fx)) continue;
+
+			/* Molds and mushroom patches never come closer (unless next to us) */
+			if ((r_info[m_ptr->r_idx].flags1 & (RF1_NEVER_MOVE)) &&
+			    (distance(py, px, m_ptr->fy, m_ptr->fx) > 1)) continue;
+
+			monster_desc(m_name, m_ptr, 0x0C);
+			auto_explore = 0;
+			msg_format("In view: %s.", m_name);
+			return;
+		}
+	}
+
+	/* Breadth-first search from the player */
+	for (y = 0; y < dungeon_hgt; y++)
+		for (x = 0; x < dungeon_wid; x++) explore_dist[y][x] = -1;
+
+	explore_dist[py][px] = 0;
+	explore_qy[tail] = py; explore_qx[tail++] = px;
+
+	while (head < tail)
+	{
+		int cy = explore_qy[head], cx = explore_qx[head++], d;
+
+		if (((cy != py) || (cx != px)) && explore_target(cy, cx, mode))
+		{
+			ty = cy; tx = cx;
+			break;
+		}
+
+		for (d = 0; d < 8; d++)
+		{
+			int yy = cy + ddy_ddd[d], xx = cx + ddx_ddd[d];
+
+			if (!in_bounds(yy, xx)) continue;
+			if (explore_dist[yy][xx] >= 0) continue;
+
+			/*
+			 * Unknown grids are never entered, except in the town by a
+			 * stair walk (the entrance at night)
+			 */
+			if (!explore_known(yy, xx) &&
+			    ((mode == EXPLORE_ANY) || p_ptr->depth)) continue;
+			if (!explore_passable(yy, xx))
+			{
+				/* Remember a known trap or a locked door in the way */
+				if ((explore_done[yy][xx] == 2) ||
+				    (cave_trap(yy, xx) && cave_visible_trap(yy, xx)))
+					blocked = TRUE;
+				continue;
+			}
+
+			explore_dist[yy][xx] = explore_dist[cy][cx] + 1;
+			explore_qy[tail] = yy; explore_qx[tail++] = xx;
+		}
+	}
+
+	if (ty < 0)
+	{
+		auto_explore = 0;
+		if (mode == EXPLORE_UP) msg_print("You know of no way up.");
+		else if (mode == EXPLORE_DOWN) msg_print("You know of no way down.");
+		else if (blocked) msg_print("Only a locked door or a known trap is in the way.");
+		else msg_print("Nothing left to explore.");
+		return;
+	}
+
+	/* Walk back from the target to the first step */
+	y = ty; x = tx;
+	while (explore_dist[y][x] > 1)
+	{
+		int d, best = -1;
+
+		for (d = 0; d < 8; d++)
+		{
+			int yy = y + ddy_ddd[d], xx = x + ddx_ddd[d];
+
+			if (!in_bounds(yy, xx)) continue;
+			if (explore_dist[yy][xx] == explore_dist[y][x] - 1) { best = d; break; }
+		}
+		if (best < 0) { auto_explore = 0; return; }
+		y += ddy_ddd[best]; x += ddx_ddd[best];
+	}
+
+	/* A closed door: open it if it is not locked (never pick locks) */
+	if ((cave_feat[y][x] >= FEAT_DOOR_HEAD) && (cave_feat[y][x] <= FEAT_DOOR_TAIL))
+	{
+		if (cave_feat[y][x] > FEAT_DOOR_HEAD)
+		{
+			/* Skip it on the next press */
+			explore_done[y][x] = 2;
+			auto_explore = 0;
+			msg_print((cave_feat[y][x] >= FEAT_DOOR_HEAD + 0x08) ?
+				"The door appears to be stuck." : "The door is locked.");
+			return;
+		}
+
+		p_ptr->energy_use = 100;
+		cave_set_feat(y, x, FEAT_OPEN);
+		p_ptr->update |= (PU_UPDATE_VIEW | PU_MONSTERS);
+		sound(MSG_OPENDOOR);
+		explore_msgs = message_num();
+		return;
+	}
+
+	/* The step: a new message or a disturb() during it ends the walk */
+	explore_msgs = message_num();
+	p_ptr->energy_use = 100;
+	move_player(5 + (x - px) - 3 * (y - py), always_pickup);
+
+	/* Did not move: an unseen monster, deep water, a pit ... */
+	if ((p_ptr->py == py) && (p_ptr->px == px)) auto_explore = 0;
+
+	/* Something happened */
+	if (message_num() != explore_msgs) auto_explore = 0;
+}
+
+
+/* Start a walk (the command) */
+static void explore_start(int mode)
+{
+	/* Walking blind or confused would only bump into things */
+	if (p_ptr->blind || p_ptr->confused || p_ptr->image)
+	{
+		msg_print("You are in no state to find your way.");
+		return;
+	}
+
+	auto_explore = mode;
+	explore_msgs = message_num();
+	explore_step();
+}
+
+/* The 'H' command */
+void do_cmd_explore(void)
+{
+	explore_start(EXPLORE_ANY);
+}
+
+/* '<' / '>' off the stairs: walk to the nearest known one (and stop there) */
+void explore_to_stairs(bool up)
+{
+	explore_start(up ? EXPLORE_UP : EXPLORE_DOWN);
 }

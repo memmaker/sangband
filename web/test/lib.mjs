@@ -39,7 +39,7 @@ export async function open(port = PORT, opts = {}) {
 function shadowScript() {
 	const S = {};
 	function row(t, y) { S[t] = S[t] || []; S[t][y] = S[t][y] || []; return S[t][y]; }
-	window.__screen = (t) => (S[t] || []).map((r) => (r || []).map((c) => c || ' ').join(''));
+	window.__screen = (t) => Array.from(S[t] || [], (r) => Array.from(r || [], (c) => c || ' ').join(''));
 	const iv = setInterval(() => {
 		if (!window.Module || !Module.qb || Module.qb.__wrapped) return;
 		const q = Module.qb, text = q.text, wipe = q.wipe, clear = q.clear, pict = q.pict;
@@ -96,4 +96,51 @@ export async function wipeDbs(page) {
 		for (const d of dbs) if (d.name.startsWith('/sangband/')) { indexedDB.deleteDatabase(d.name); out.push(d.name); }
 		return out;
 	});
+}
+
+// Fresh character (all defaults) from the title screen into the town
+export async function birth(page, name = 'Tester') {
+	await wipeDbs(page); await page.reload();
+	await page.waitForFunction(() => window.__shadowReady && window.__screen(0).join('').includes('Press any key'), null, { timeout: 30000 });
+	await type(page, ' '); await waitText(page, /a\) New Character/);
+	await type(page, 'a'); await waitText(page, /Choose a gender/);
+	await type(page, 'a'); await waitText(page, /Choose a race/);
+	await type(page, 'a'); await waitText(page, /Enter minimum value/);
+	await type(page, '\r\r\r\r\r\r'); await waitText(page, /Accept these odds/);
+	await type(page, 'y'); await waitText(page, /Return to accept/);
+	await type(page, '\r'); await waitText(page, /Enter a name/);
+	await keys(page, Array(8).fill('Backspace'));
+	await type(page, name + '\r'); await waitText(page, /any other key to continue/);
+	await type(page, ' ');
+	return waitText(page, new RegExp(name + '[\\s\\S]*Town'));
+}
+
+// The player's position on term 0 ('@' on the map rows)
+export async function pos(page) {
+	const rows = (await screen(page)).split('\n');
+	for (let y = 1; y < rows.length - 1; y++) {
+		const x = rows[y].indexOf('@', 13);
+		if (x >= 0) return { y, x };
+	}
+	return null;
+}
+
+// The player's map position and depth (main-web.c web_where()), null before play
+export async function where(page) {
+	const w = await page.evaluate(() => Module._web_where());
+	return w < 0 ? null : { d: w >> 16, y: (w >> 8) & 255, x: w & 255 };
+}
+
+// Wait until the player has stood still for `still` ms; returns the positions seen
+export async function settle(page, still = 1500, timeout = 60000) {
+	const end = Date.now() + timeout, seen = [];
+	let last = JSON.stringify(await where(page)), since = Date.now();
+	seen.push(last);
+	while (Date.now() < end) {
+		await sleep(50);
+		const p = JSON.stringify(await where(page));
+		if (p !== last) { last = p; since = Date.now(); seen.push(p); }
+		else if (Date.now() - since >= still) break;
+	}
+	return seen.map((s) => JSON.parse(s));
 }
