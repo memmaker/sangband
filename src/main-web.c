@@ -100,6 +100,11 @@ EM_JS(void, js_depth, (int depth), {
 	Module.qb.depth(depth);
 });
 
+/* The game's jukebox request (xtra2.c danger_music_level()): theme, +100 = now */
+EM_JS(void, js_music, (int v), {
+	Module.qb.music(v);
+});
+
 EM_JS(void, js_color, (int i, int r, int g, int b), {
 	Module.qb.color(i, r, g, b);
 });
@@ -388,11 +393,12 @@ static errr Term_xtra_web(int n, int v)
 			if ((v > 0) && (v < MSG_MAX) && angband_sound_name[v])
 				js_sound(angband_sound_name[v]);
 			return (0);
+		case TERM_XTRA_MUSIC: js_music(v); return (0);
 		case TERM_XTRA_FRESH:
 			js_fresh(web_idx());
 			if (!web_idx()) web_gen++;
 
-			/* The page plays town music at depth 0 */
+			/* For the tests (the page's music follows js_music) */
 			js_depth(character_generated ? p_ptr->depth : -1);
 			return (0);
 		case TERM_XTRA_BORED: return (web_check_events(0));
@@ -630,6 +636,9 @@ errr init_web(int argc, char **argv)
 
 	(void)argc;
 	(void)argv;
+
+	/* Sound effects and music always requested: the page's Audio menu decides */
+	use_sound = SOUND_AND_MUSIC;
 
 	/* All 128 colours (as main-sdl.c) */
 	max_system_colors = MAX_COLORS;

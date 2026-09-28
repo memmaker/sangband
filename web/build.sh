@@ -12,6 +12,12 @@ rm -rf "$OUT" web/stage && mkdir -p "$OUT" web/stage/lib
 # the game at start; save/apex/bone/user are IndexedDB mounts (sangband.js)
 for d in edit file help pref info; do cp -R lib/$d web/stage/lib/; done
 for d in data save apex bone user xtra; do mkdir -p web/stage/lib/$d; done
+# Audio config for the page (read from the FS, never fetched): the web
+# sound.cfg (web/sounds.py: own samples + Dubtrain gaps, files to dist/sound)
+# and the game's jukebox.cfg (tunes rendered to web/music/*.ogg by music.sh)
+mkdir -p web/stage/lib/xtra/sound web/stage/lib/xtra/music
+python3 web/sounds.py web/stage/lib/xtra/sound/sound.cfg "$OUT/sound"
+cp lib/xtra/music/jukebox.cfg web/stage/lib/xtra/music/
 
 # Sources: as Makefile.std (no intrface.c: the SDL/Windows GUI layer; no
 # borgdumb.c), with the web front end instead of main-gcu.c
@@ -30,11 +36,11 @@ emcc -O2 -fcommon -std=gnu99 -DUSE_WEB -Isrc \
 	--preload-file web/stage/lib@/sangband/lib
 
 cp web/index.html web/sangband.js web/tiles.png "$OUT/"
-# Help: the game guide (make-help.py, stage 6), else a short stand-in
-if [ -f web/make-help.py ]; then python3 web/make-help.py > "$OUT/help.html"; else cp web/help-stub.html "$OUT/help.html"; fi
+# Help: the game guide (web/make-help.py; key list from lib/help/cmdlist.txt)
+python3 web/make-help.py > "$OUT/help.html"
 # Audio the page may fetch: only what ships (nothing missing is requested)
 SND=false; MUS=false
-if [ -d web/sound ]; then cp -R web/sound "$OUT/"; SND=true; fi
+if [ -d "$OUT/sound" ]; then SND=true; fi
 if [ -d web/music ]; then cp -R web/music "$OUT/"; MUS=true; fi
 echo "{\"sound\": $SND, \"music\": $MUS}" > "$OUT/audio.json"
 # Font choosers: the index page's fonts/*.woff (the page loads ../fonts/)

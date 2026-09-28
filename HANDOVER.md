@@ -271,3 +271,53 @@
   (80×24 minimum, W3); Messages keeps the game's blank birth separators
   between lines; help is a stub (stage 6); no mouse on sub-windows.
 - **Next**: stage 6 (docs + sound: make-help.py, sound/music dirs → audio.json).
+
+### Stage 6 (docs + sound): done 2026-09-28 (cloud)
+- **Help** `web/make-help.py` → `dist/help.html` (build.sh; `help-stub.html`
+  removed). Self-contained cloud form of NPP's (TAGLINE, ESSENTIALS, KEY_HINTS,
+  ABOUT, TIPS, GUIDE, SAVING, WEB, CREDITS; prefers a Docs entry
+  `sangband.html` on the Mac, `SANGBAND_NO_DOCS=1` skips it; `--docs` writes a
+  standalone page). Output uses the page's help classes (`.toc .box .key .grid
+  .all`); `index.html` got `#help-body a` in the accent colour. Sections: about,
+  keys (remember box, essentials, complete list 95 entries = original keyset +
+  roguelike rows that differ, " (roguelike keyset)"), saving (IndexedDB,
+  autosave, Export/Import, New game), tips, new-player guide (skills, costs,
+  practice, similar skills, power, realms, Oaths, talents, town/shops, items),
+  browser, credits (news.txt, readme.txt, copying.txt, jukebox.cfg), About this
+  version (sangband_source_102.zip, Google Code skills-angband svn r313,
+  `tree/230e028`, `compare/230e028...main`).
+- **cmdlist.txt fixes** (checked against `pref.prf` keymaps and
+  `process_command()`): roguelike `a` = Zap a rod, `z` = Aim a wand (were
+  swapped), `p` = Perform a combat talent (was "Pray a prayer"), `G` unused
+  (was "Gain new spells", no such command). CRLF kept.
+- **Sound**: `web/sounds.py` writes the web `sound.cfg` into the preload
+  (`lib/xtra/sound/sound.cfg`) and copies samples to `dist/sound`: Sangband's
+  own wavs first (cfg names matched case-insensitively, `unh.wav,` comma,
+  never-shipped names dropped), 50 empty events from Dubtrain v3.1.0
+  (`web/dubtrain`: only the used mp3s + `sound.prf` + README, CC BY 4.0,
+  copied from ref-nppangband), melee `miss` = `plc_miss_swish` (own was
+  `crossb.wav`), missile events get the arrow samples. walk/ambient silent.
+- **Music**: Sangband ships its own (`lib/xtra/music`, .it/.mid +
+  `jukebox.cfg`, themes town/peaceful/light/medium/heavy/deadly/death, GPL /
+  NetHack GPL, credits in `web/music/README.md` incl. the verbatim Reenen Laurie
+  text). `web/music.sh` renders them to `web/music/*.ogg` (openmpt123, timidity
+  + FluidR3 GM, ffmpeg vorbis q0; 19 tunes, 13 MB, committed; apt-get needed
+  `apt-get update` first in the cloud). C: `use_sound = SOUND_AND_MUSIC` in
+  `init_web()`, `TERM_XTRA_MUSIC` → `js_music(v)`; the game's own
+  `danger_music_level()` asks every turn. Page: `jukebox()` ported from
+  `intrface.c` (not compiled) in `sangband.js`, `jukebox.cfg` read from the
+  preload FS (`.it/.mid` → `.ogg`), song made only when Music is on.
+- **Toggles**: Audio ▾ Sound effects / Music, off by default, kept in
+  `web-layout.json` (`L.audio`). `audio.json` = `{"sound": true, "music": true}`.
+- **Test** `web/test/stage6.mjs` (as before: `SRV`, `PORT`, `PLAYWRIGHT_BROWSERS_PATH`),
+  33 checks: audio off + nothing fetched, guide claims in the game (tutorial
+  `?`, EXP sidebar, starting kit, `$` screen keys/27 skills, `+`/`-`/Enter,
+  `R` prompt), help sections/classes/keysets/links/credits/Escape, real click
+  Sound → eat requests own `Mmm.wav`, `>` requests a Dubtrain mp3, Music → a
+  dungeon theme at once, `<` to town → town tune, reload keeps both, off →
+  nothing fetched, layout file holds off, wav/mp3/ogg decode, no errors.
+  stage1-5 + resize still pass (stage5 help check now case-insensitive).
+- **Open**: Google Code link not checked from the cloud (proxy 403; github
+  links 200). No Docs entry written (cloud): generate it on the Mac from
+  make-help.py. Music volume 0.5 / sounds 0.6 not tuned by ear.
+- **Next**: stage 7 (repo / deploy / card).

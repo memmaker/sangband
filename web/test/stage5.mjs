@@ -141,7 +141,7 @@ try {
 	// ---- help + Enter menu ----
 	await page.click('#btn-help'); await sleep(700);
 	const help = await page.evaluate(() => ({ open: !document.getElementById('help').hidden, t: document.getElementById('help-body').textContent }));
-	ok(help.open && /Keys to remember/.test(help.t), 'Help opens the guide (help.html)');
+	ok(help.open && /keys to remember/i.test(help.t), 'Help opens the guide (help.html)');
 	await keys(page, ['Escape'], 300);
 	ok(await page.evaluate(() => document.getElementById('help').hidden), 'Escape closes Help');
 	await type(page, '\r', 700);

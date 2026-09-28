@@ -416,27 +416,77 @@
 		return String.fromCharCode(b);
 	}
 
-	/* Sound effects (lib/xtra/sound/sound.cfg) and town music, both off by default */
-	var audio = { sound: false, music: false, cfg: null, cache: {}, depth: -1, song: null, have: {} };
+	/*
+	 * Sound effects (sound.cfg, web/sounds.py) and the game's own music
+	 * (lib/xtra/music/jukebox.cfg, rendered to music/*.ogg), both off by default
+	 */
+	var audio = { sound: false, music: false, cfg: null, cache: {}, depth: -1, song: null, have: {},
+		themes: null, want: -1, theme: -1, start: 0 };
+	var THEMES = ['town', 'peaceful', 'light', 'medium', 'heavy', 'deadly', 'death'];
 
-	/* sound.cfg sits in the preloaded lib (a fetched .cfg is a download prompt) */
-	function loadSoundCfg() {
-		audio.cfg = {};
-		var t = '';
-		try { t = Module.FS.readFile('/sangband/lib/xtra/sound/sound.cfg', { encoding: 'utf8' }); } catch (e) { }
+	/* Config files sit in the preloaded lib (a fetched .cfg is a download prompt) */
+	function readCfg(path) {
+		var out = {}, t = '';
+		try { t = Module.FS.readFile(path, { encoding: 'utf8' }); } catch (e) { }
 		t.split('\n').forEach(function (l) {
 			var m = /^(\w+)\s*=\s*(.+)$/.exec(l.trim());
-			if (m) audio.cfg[m[1]] = m[2].split(/\s+/);
+			if (m) out[m[1]] = m[2].split(/\s+/);
 		});
+		return out;
+	}
+	function loadSoundCfg() { audio.cfg = readCfg('/sangband/lib/xtra/sound/sound.cfg'); }
+
+	/* Start a song of this theme (play_music_sdl()); none there = silence */
+	function playTheme(v) {
+		if (!audio.themes) audio.themes = readCfg('/sangband/lib/xtra/music/jukebox.cfg');
+		var list = audio.themes[THEMES[v]] || [];
+		if (audio.song) { audio.song.pause(); audio.song = null; }
+		audio.theme = v;
+		audio.start = performance.now() / 1000;
+		if (!list.length) return;
+		var f = list[Math.floor(Math.random() * list.length)].replace(/\.[a-z0-9]+$/i, '.ogg');
+		audio.song = new Audio('music/' + f);
+		audio.song.loop = true;
+		audio.song.volume = 0.5;
+		audio.song.play().catch(function () { });
+	}
+
+	/*
+	 * The jukebox (intrface.c jukebox(), not compiled here): change at once on
+	 * a +100 request or when nothing plays, else only after the song had time,
+	 * sooner when the danger rose a lot.
+	 */
+	function jukebox(v) {
+		var now = v >= 100 || audio.theme < 0;
+		if (v >= 100) v -= 100;
+		if (now) return v !== audio.theme;
+		var t = performance.now() / 1000 - audio.start;
+		var len = (audio.song && isFinite(audio.song.duration)) ? audio.song.duration : 120;
+		if (t < 10) return false;
+		if (v >= 0 && v <= 5) {
+			var d = v - audio.theme;
+			if (d >= 4) return true;
+			if (d >= 3) return t >= 20;
+			if (d >= 2) return t >= 30;
+			if (d >= 1) return t >= Math.max(len, 50);
+			if (d >= 0) return t >= Math.max(len, 120);
+			if (d >= -1) return t >= Math.max(len, 60);
+			if (d >= -2) return t >= 40;
+			if (d >= -3) return t >= 30;
+			return false;
+		}
+		return t >= Math.max(len, 60);
 	}
 
 	function updateMusic() {
-		if (audio.music && audio.have.music && audio.depth === 0) {
-			/* made on first use: no music fetch at page load */
-			if (!audio.song) { audio.song = new Audio('music/town.ogg'); audio.song.loop = true; }
-			audio.song.play().catch(function () { });
+		if (audio.music && audio.have.music) {
+			/* made on first use: no music fetch at page load or while off */
+			if (audio.want >= 0 && audio.theme < 0) playTheme(audio.want);
 		}
-		else if (audio.song) audio.song.pause();
+		else {
+			if (audio.song) { audio.song.pause(); audio.song = null; }
+			audio.theme = -1;
+		}
 	}
 
 	function toggleAudio(kind) {
@@ -502,10 +552,13 @@
 			a.play().catch(function () { });
 		},
 
-		depth: function (d) {
-			if (d === audio.depth) return;
-			audio.depth = d;
-			updateMusic();
+		depth: function (d) { audio.depth = d; },
+
+		/* TERM_XTRA_MUSIC: a theme 0..6 (+100 = change now), every game turn */
+		music: function (v) {
+			audio.want = v % 100;
+			if (!audio.music || !audio.have.music) return;
+			if (jukebox(v)) playTheme(v % 100);
 		},
 
 		mouseX: 0, mouseY: 0, mouseB: 0,

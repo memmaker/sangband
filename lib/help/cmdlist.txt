@@ -84,13 +84,13 @@ Mouse commands (not available in all ports)
            h     l         Shift + h     l         Ctrl  +  h     l
            b  j  n                 b  j  n                  b  j  n
 
- a  Aim a rod                            A  Activate an artifact
+ a  Zap a rod                            A  Activate an artifact
  b  (walk - south west)                  B  (run - south west)
  c  Close a door                         C  Character description
  d  Drop an item                         D  Disarm a trap/Desanctify a glyph
  e  Equipment list                       E  Eat some food
  f  Force (bash) a door or Yell          F  Fuel your lantern/torch
- g  Get object on floor                  G  Gain new spells/prayers
+ g  Get object on floor                  G  (unused)
  h  (walk - west)                        H  (run - west)
  i  Inventory list                       I  Inspect an item
  j  (walk - south)                       J  (run - south)
@@ -99,7 +99,7 @@ Mouse commands (not available in all ports)
  m  Cast a spell or pray a prayer        M  Full dungeon map
  n  (walk - south east)                  N  (run - south east)
  o  Open a door or chest                 O  Auto-explore
- p  Pray a prayer or cast a spell        P  Browse a book
+ p  Perform a combat talent              P  Browse a book
  q  Quaff a potion                       Q  Save and quit (or retire)
  r  Read a scroll                        R  Rest for a period
  s  Search for traps/doors               S  Jam a door (Spike)
@@ -109,7 +109,7 @@ Mouse commands (not available in all ports)
  w  Wear/wield equipment                 W  Locate player on map (Where)
  x  Examine area                         X  (unused - switch weapon macro)
  y  (walk - north west)                  Y  (run - north west)
- z  Zap a wand                           Z  Zap (use) a staff
+ z  Aim a wand                           Z  Zap (use) a staff
  !  Interact with system                ^A  (special - debug command)
  @  Interact with macros                ^B  (alter - south west)
  #  Start/stop sneaking                 ^C  (special - break)
