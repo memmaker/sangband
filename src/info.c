@@ -1477,7 +1477,7 @@ void self_knowledge(bool full)
 
 	/* Build a name and title string */
 	(void)strnfmt(buf, sizeof(buf), "%s, %s%s",
-			  (op_ptr->full_name ? op_ptr->full_name : "Anonymous"),
+			  (op_ptr->full_name[0] ? op_ptr->full_name : "Anonymous"),
 			  (quotes ? "" : "the "), title);
 
 	/* Display character name and title */

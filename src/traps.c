@@ -1962,7 +1962,7 @@ static void hit_monster_trap(int who, int y, int x, int t_idx)
 		}
 
 		/* Potion explodes (special case of character = -2) */
-		(bool)potion_smash_effect(-2, y, x, o_ptr);
+		(void)potion_smash_effect(-2, y, x, o_ptr);
 
 		/* Remove one potion */
 		o_ptr->number--;

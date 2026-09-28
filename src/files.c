@@ -3234,7 +3234,7 @@ void display_player(int mode, bool change_display)
 
 		/* Build a name and title string */
 		(void)strnfmt(buf, sizeof(buf), "%s\n %s%s",
-		        (op_ptr->full_name ? op_ptr->full_name : "Anonymous"),
+		        (op_ptr->full_name[0] ? op_ptr->full_name : "Anonymous"),
 		        (quotes ? "" : "the "), title);
 
 		/* No need to insert a return in a short string */
