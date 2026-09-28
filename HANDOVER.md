@@ -321,3 +321,53 @@
   links 200). No Docs entry written (cloud): generate it on the Mac from
   make-help.py. Music volume 0.5 / sounds 0.6 not tuned by ear.
 - **Next**: stage 7 (repo / deploy / card).
+
+### Stage 7 (publish): done 2026-09-28 (cloud; NOT pushed, NOT deployed: no ssh)
+- **Repo** github.com/memmaker/sangband (remote `origin`, branch `main`),
+  history kept (no bundle inside, no filter-repo): commit 1 = upstream
+  `230e028`. `README.md` new (upstream `s-readme.txt` untouched): upstream =
+  Sangband 1.0.2, Google Code skills-angband svn trunk r313, links
+  `tree/230e028` and `compare/230e028...main`, build on Mac + cloud.
+- **build.sh**: `RVIP_WEB` (default `~/Games/rvip-tools/web`, else
+  `/home/user/rvip/web`), `ROGUELIKES` (default `~/Games/roguelikes-index`,
+  else `/home/user/roguelikes`), `FONTS`, `EMSDK`; writes `web/serve/`
+  (gitignored: rvip-*.js + fonts symlinks, `sangband -> ../dist`). Fresh
+  `git clone` → `sh web/build.sh` → `stage1.mjs` against `web/serve`: all ok.
+- **og**: `<!--og-->` block in `web/index.html` (from the card; image
+  `img/sangband.png`), stage 5's hand-written description removed. No shrine
+  yet (stage 8: og.py's shrine loop picks it up once the card has an Info link).
+- **Selection page** (`/home/user/roguelikes`, branch
+  `claude/modest-davinci-rw8z6m`, commit `8c40e3f`): card after NPPAngband
+  (tag "Angband variant · 2011", ver "Based on Sangband 1.0.2 ·
+  skills-angband svn r313 @ 230e028", no Info button yet), image = the
+  project's title splash `news.png` (403x376, sha1 493f2203…) as
+  `img/sangband.png`, CSS `img.splash` = cover, top-anchored (logo + dragon;
+  contain was tiny/unreadable). Screenshots checked at 1440 (DPR 1 and 2)
+  and 375 px. "39 classic roguelikes" in the index og text. og.py fix: its
+  card regex matched no card since `data-year` (now `<div class="card"[^>]*>`).
+- **Year** 2011 (years.json `sangband`, src
+  https://code.google.com/archive/p/skills-angband/downloads — downloads JSON
+  `releaseDate` 1301547251 = 2011-03-31 for `sangband_source_102.zip`): README
+  rule = release of the played version (as NPP 0.5.1 → 2011, ZAPM 0.8.2 →
+  2010). Tree node `Sangband` 1994 (years.json tree) for the birth.
+- **Parent**: Angband (tree `<li>` under Angband: Sangband 1994 → Sangband
+  1.0.2 2011). `docs/manual.txt` history: Chris Petit, first release 3 March
+  1994 on Angband 2.5.x code as modified in his Bangband; Gorse to 0.9.3,
+  Lighton 0.9.4-0.9.5 (updated to Angband 2.8.3), Marrick from 2001, 1.0.0
+  May 2007. **Disagreements**: `s-readme.txt` says "based on Angband and also
+  on Oangband" (Marrick's 1.0 took Oangband code; noted in the tree text, not
+  placed under Oangband); first release date: manual text 3 Mar 1994, its
+  copyright list "0.1 - 0.8.5: Jun 28, 1994", RogueBasin (via web search
+  snippet; the site is blocked here) 2 Sep 1994 — all 1994. RogueBasin page
+  not read directly (proxy 403).
+- **Deploy on the Mac** (after the orchestrator pushed both repos):
+  1. `cd ~/Games/sangband && git pull && sh web/build.sh && sh web/deploy.sh`
+     then `curl -s https://ruzzoli.de/roguelikes/sangband/ | grep og:image`
+     and play https://ruzzoli.de/roguelikes/sangband/.
+  2. Merge `claude/modest-davinci-rw8z6m` into `main` of roguelikes-index,
+     `cd ~/Games/roguelikes-index && git checkout main && git pull &&
+     ./order.py && ./deploy.sh`, check https://ruzzoli.de/roguelikes/ (card)
+     and https://ruzzoli.de/roguelikes/#tree.
+- **Open**: nothing deployed; card and tree link to `sangband/` which 404s
+  until step 1 runs. Shrine / Info button / tree ✦: stage 8.
+- **Next**: stage 8 (shrine).
