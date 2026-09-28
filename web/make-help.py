@@ -64,8 +64,8 @@ it into version 1.0.0 (2007). This is 1.0.2 (2011), with Joshua Middendorf among
 is Angband's: go down through the dungeon below the town and defeat Sauron (level 99) and Morgoth, Lord
 of Darkness (level 100).</p>
 <ul>
-<li><strong>No classes.</strong> You pick a sex and one of twelve races (Human, Elf, Hobbit, Gnome,
-Dwarf, Half-Orc, Half-Troll, High-Elf, Dark-Elf, Giant, Ent, Beorning). Everything else comes from the
+<li><strong>No classes.</strong> You pick a sex and one of fourteen races (Human, Elf, Hobbit, Gnome,
+Dwarf, Half-Orc, Half-Troll, Dúnadan, High-Elf, Dark-Elf, Giant, Ent, Drúedain, Beorning). Everything else comes from the
 27 skills you raise with the experience you earn.</li>
 <li><strong>Oaths:</strong> commit to the Oath of Iron (the great warrior arts), one of the four
 magic Oaths, or the Burglars' Guild, and give up the others for good.</li>

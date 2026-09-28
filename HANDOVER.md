@@ -371,3 +371,53 @@
 - **Open**: nothing deployed; card and tree link to `sangband/` which 404s
   until step 1 runs. Shrine / Info button / tree ✦: stage 8.
 - **Next**: stage 8 (shrine).
+
+### Stage 8 (shrine): done 2026-09-28 (cloud; NOT pushed, NOT deployed: no ssh)
+- **Shrine** `roguelikes/shrine/sangband.html` + `shrine/sangband/`: sections in
+  step-11 order (+ Screenshots after Credits, as rogue54): facts, lineage (with
+  both disagreements spelled out: first release 3 Mar / 28 Jun / 2 Sep 1994;
+  base Angband 2.5 via Bangband → 2.8.3 (manual) vs 2.9.3 + 3.0.6 changes +
+  Oangband 0.7.0 (`src/changes.txt`) vs "Angband and also Oangband"
+  (`s-readme.txt`)), credits, 4 screenshots (`img/sangband.png` splash, town,
+  `$` skills, DL3), trivia, USP, code dive, stats, manual, start, help, cheats.
+- **Manual files** by `web/mkmanual.py <shrine/sangband>`: `manual.html`
+  (upstream `docs/manual.html`, unchanged, rev. 22 Oct 2010), `help.html`
+  (all 34 `lib/help` files as in this build), `commands.pdf` (upstream
+  command card 2007), `changelog.txt` (`docs/changes-*.txt`, newest first,
+  CR/CRLF + cp1252 → UTF-8/LF), `license.txt` (`docs/copying.txt`).
+  Manual exists; **no walkthrough found** (random dungeon), said on the page.
+- **Facts from the code**: 14 races (help said twelve: fixed in
+  `make-help.py` ABOUT, Dúnadan + Drúedain were missing), 27 skills, 6 oaths,
+  4 realms / 28 books / 207 spells (W50 P54 D51 N52), 50 talents, 18 shapes,
+  607 monsters (88 uniques + 11 player-ghost templates), 535 object kinds,
+  136 artifacts, 132 egos, 53 terrain, 118 vaults, MAX_DEPTH 128, quests
+  Sauron 99 / Morgoth 100. Upstream src: 225,224 lines in 83 .c/.h
+  (`git archive 230e028 src`).
+- **Credits correction**: the 1.0.2 title screen (`lib/file/news.txt`) lists
+  Petit, Gorse, Lighton, Marrick **and Joshua Middendorf**; the 1.0.1 splash
+  `news.png` only the four. 1.0.x developers per `docs/readme.txt`:
+  Middendorf, Christer Nyfält, Scott Yost.
+- **Trivia sources**: RogueBasin, archive.org, narkive, angband.live,
+  wikipedia, namu, setsideb are all blocked here (proxy 403, WebFetch
+  EGRESS_BLOCKED). Reachable: `storage.googleapis.com/google-code-archive/
+  v2/code.google.com/skills-angband/` `project.json`, `downloads-page-1.json`,
+  `issues-page-N.json`, `issues/issue-N.json` (191 issues; used #97, #103,
+  #181); `wikis.json` 403. Trivia also from the shipped changelogs/manual.
+- **Cheats (tested in the web build)**: `Ctrl+A` debug (confirm → "Debug
+  Command:"), wizard `Ctrl+W` is eaten by the browser → `^` then `w` (the
+  game's "Control:" prefix) reaches the wizard confirm. Cheat options:
+  know monster info, multiple lives, skills past power 100.
+- **Links**: card Info button + tree ✦ (roguelikes index.html); game page
+  `#bar h1` already linked `../shrine/sangband.html` (+ CSS) since stage 5
+  (inherited from NPP's page). og block written by og.py's shrine loop run for
+  this shrine only (card image `img/sangband.png`).
+- **Checked**: shrine 375 px scrollWidth = innerWidth (also help.html), 1440
+  px screenshots looked at, every local link/image 200.
+- **Mac / deploy**: after the orchestrator pushes: roguelikes `deploy.sh`
+  (merge the branch into main first, as stage 7), game `git pull && sh
+  web/build.sh && sh web/deploy.sh` (help.html race count changed); then
+  check https://ruzzoli.de/roguelikes/shrine/sangband.html, the card Info, the
+  tree ✦ and the game-title link.
+- **Open**: nothing deployed; RogueBasin's 2 Sep 1994 date still unread
+  first-hand; Google Code link targets not openable from the cloud.
+- **Next**: stage 9 (graveyard + leaderboard).
