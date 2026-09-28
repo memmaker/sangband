@@ -132,7 +132,7 @@ void x_fprintf(FILE *fff, int encoding, cptr fmt, ...)
 	/* Translate */
 	xstr_trans(buf, encoding);
 
-	fprintf(fff, buf);
+	fprintf(fff, "%s", buf);
 }
 
 
@@ -2029,7 +2029,13 @@ static void msg_flush(int x)
 	(void)Term_putstr(x, 0, -1, attr, "(+)");
 
 	/* Get an acceptable keypress */
+#ifdef USE_WEB
+	/* Web: "message_to_window" (on by default) never waits, even before the
+	 * Messages window exists (birth); the messages stay in the history */
+	if (!message_to_window)
+#else
 	if (!message_to_window_active)
+#endif
 	{
 		while (TRUE)
 		{

@@ -347,7 +347,7 @@ static void print_history(int first_item, int page_size, FILE *fff)
         /* Size of header = 5 lines */
         if (fff)
         {
-            fprintf(fff, buf);
+            fprintf(fff, "%s", buf);
             fprintf(fff,"\n");
         }
         else prt(buf, row + 5, 0);

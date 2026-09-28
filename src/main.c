@@ -35,6 +35,9 @@
  */
 static const struct module modules[] =
 {
+#ifdef USE_WEB
+	{ "web", help_web, init_web },
+#endif /* USE_WEB */
 #ifdef USE_GTK
 	{ "gtk", help_gtk, init_gtk },
 #endif /* USE_GTK */
@@ -489,8 +492,10 @@ int main(int argc, char *argv[])
 	/* Process the player name (but only if one is specified) */
 	if (strlen(op_ptr->full_name)) process_player_name(TRUE);
 
-	/* Install "quit" hook */
+#ifndef USE_WEB
+	/* Install "quit" hook (the web module installs its own) */
 	quit_aux = quit_hook;
+#endif /* USE_WEB */
 
 
 	/* Try the modules in the order specified by modules[] */
@@ -516,6 +521,11 @@ int main(int argc, char *argv[])
 
 	/* Initialize */
 	init_angband();
+
+#ifdef USE_WEB
+	/* Web defaults for new characters (window flags, centred map) */
+	web_init_game();
+#endif /* USE_WEB */
 
 	/* Hack -- If requested, display scores and quit */
 	if (show_score > 0) display_scores(0, show_score);

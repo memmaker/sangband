@@ -5656,6 +5656,9 @@ void print_tomb(void)
 	char tmp[DESC_LEN];
 	char buf[1024];
 
+	/* Title (used after the block that builds it) */
+	char buf2[DESC_LEN];
+
 	/* Center on the screen (conform to size and position of tombstone) */
 	int l_margin = 18 + (display_width() - 70) / 2;
 
@@ -5685,8 +5688,6 @@ void print_tomb(void)
 	/* Normal */
 	else
 	{
-		char buf2[DESC_LEN];
-
 		cptr title = get_title(32, FALSE, TRUE);
 		bool quotes = (title[0] == '\"');
 
@@ -5705,12 +5706,12 @@ void print_tomb(void)
 	if (!p_ptr->deaths)
 	{
 		c_roff_centered(TERM_L_BLUE,
-			format("Score: %ld\n\n", points), l_margin, l_margin + 32);
+			format("Score: %ld\n\n", (long)points), l_margin, l_margin + 32);
 	}
 	else
 	{
 		c_roff_centered(TERM_L_BLUE,
-			format("Score: (%ld)\n\n", ABS(points)), l_margin, l_margin + 32);
+			format("Score: (%ld)\n\n", (long)ABS(points)), l_margin, l_margin + 32);
 	}
 
 	/* Death Level */

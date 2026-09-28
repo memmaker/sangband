@@ -2619,7 +2619,11 @@ const bool option_norm[OPT_MAX] =
 	TRUE, 		/* OPT_show_flavors */
 	FALSE,		/* OPT_use_metric */
 	TRUE, 		/* OPT_always show list */
+#ifdef USE_WEB
+	TRUE,		/* OPT_message_to_window (web: no "(+)" stops, RVIP auto_more) */
+#else
 	FALSE,		/* OPT_message_to_window */
+#endif
 	FALSE,		/* xxx */
 	FALSE,		/* xxx */
 	FALSE,		/* xxx */

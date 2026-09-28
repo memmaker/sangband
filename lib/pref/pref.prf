@@ -390,7 +390,7 @@ E:93:P
 #?:[EQU $SYS gtk]
 #%:pref-gtk.prf
 
-?:[IOR [EQU $SYS xaw] [EQU $SYS x11] [EQU $SYS gtk]]
+?:[IOR [EQU $SYS xaw] [EQU $SYS x11] [EQU $SYS gtk] [EQU $SYS web]]
 %:pref-x11.prf
 
 ?:[EQU $SYS gcu]

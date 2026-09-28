@@ -1,0 +1,4 @@
+web/dist/
+web/stage/
+web/shots/
+*.o

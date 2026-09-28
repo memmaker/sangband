@@ -862,7 +862,7 @@ errr check_modification_date(int fd, cptr template_file)
 void safe_setuid_drop(void)
 {
 
-#ifdef SET_UID
+#if defined(SET_UID) && !defined(USE_WEB)
 
 # ifdef HAVE_SETEGID
 
@@ -891,7 +891,7 @@ void safe_setuid_drop(void)
 void safe_setuid_grab(void)
 {
 
-#ifdef SET_UID
+#if defined(SET_UID) && !defined(USE_WEB)
 
 # ifdef HAVE_SETEGID
 

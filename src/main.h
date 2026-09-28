@@ -19,6 +19,8 @@ extern errr init_x11(int argc, char **argv);
 extern errr init_gcu(int argc, char **argv);
 extern errr init_dos(int argc, char **argv);
 extern errr init_ibm(int argc, char **argv);
+extern errr init_web(int argc, char **argv);
+extern void web_init_game(void);
 
 
 extern const char help_gtk[];
@@ -26,6 +28,7 @@ extern const char help_x11[];
 extern const char help_gcu[];
 extern const char help_dos[];
 extern const char help_ibm[];
+extern const char help_web[];
 
 
 

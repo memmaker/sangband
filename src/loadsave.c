@@ -3380,7 +3380,7 @@ static int load_savefile_names(void)
 	if (!fff) return (0);
 
 	/* Parse the savefile record */
-	while (0 == my_fgets(fff, buf, sizeof(buf)))
+	while ((max < 46) && (0 == my_fgets(fff, buf, sizeof(buf))))
 	{
 		int i = 1;
 
@@ -3392,7 +3392,7 @@ static int load_savefile_names(void)
 		for (i = 1;; i++)
 		{
 			/* Build path */
-			if (buf[i] != '@') savefile_names[max][i - 1] = buf[i];
+			if ((buf[i] != '@') && buf[i] && (i < 40)) savefile_names[max][i - 1] = buf[i];
 			else
 			{
 				/* Terminate */
@@ -3405,7 +3405,7 @@ static int load_savefile_names(void)
 		i++;
 
 		/* Read the character description */
-		(void)strnfmt(savefile_desc[max], sizeof(savefile_desc[max]), buf + i);
+		(void)strnfmt(savefile_desc[max], sizeof(savefile_desc[max]), "%s", buf + i);
 
 		/* Append user ID to filename if necessary */
 #ifdef SAVEFILE_USE_UID
