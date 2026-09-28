@@ -68,6 +68,9 @@ async function walkToShop(page) {
 
 try {
 	let { browser, context, page, errors } = await open();
+	// Stage 9: a finished run reports to /roguelikes/beacon (the server answers 204)
+	const beacons = [];
+	await context.route('**/roguelikes/beacon**', (r) => { beacons.push(r.request().url()); r.fulfill({ status: 204 }); });
 	const dls = [];
 	page.on('download', (d) => dls.push(d));
 
@@ -317,6 +320,7 @@ try {
 	}
 	ov = await page.evaluate(() => ({ shown: !document.getElementById('overlay').hidden, t: document.getElementById('overlay-msg').textContent }));
 	ok(ov.shown && /died/.test(ov.t), 'death: tombstone, scores -> "Play again" overlay: ' + J(ov.t));
+	ok(beacons.length === 1 && /ev=death/.test(beacons[0]), 'death: one beacon (stage 9) ' + J(beacons));
 	await snap(page, 's5-dead');
 	nav = page.waitForEvent('load', { timeout: 20000 });
 	await page.click('#btn-restart'); await nav;

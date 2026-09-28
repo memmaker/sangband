@@ -421,3 +421,80 @@
 - **Open**: nothing deployed; RogueBasin's 2 Sep 1994 date still unread
   first-hand; Google Code link targets not openable from the cloud.
 - **Next**: stage 9 (graveyard + leaderboard).
+
+### Stage 9 (graveyard + leaderboard): done 2026-09-28 (cloud; NOT pushed, NOT deployed: no ssh)
+- **Hook**: `files.c` `close_game()`, first thing in the `if (p_ptr->is_dead)`
+  branch (before `close_game_aux()`: `kingly()` moves a winner to depth 0, the
+  high-score entry comes after) → `web_run_end()` in `src/main-web.c` →
+  `js_beacon` EM_JS → `RvipWM.report(q)` (fallback bare `fetch` exactly as
+  RVIP step 12). Prototype in `externs.h` (`#ifdef USE_WEB`).
+- **Fields sent**: `g=sangband`; `ev` = `win` if `p_ptr->total_winner` (retire
+  with `Q`, died_from "Ripe Old Age"), `quit` if died_from is "(Quit the game)"
+  (ironman `Q` = suicide with `@`) or "(Suicide -- at least 5 interrupts)",
+  else `death`; `name` = `op_ptr->full_name`; `killer` = `died_from`
+  (`monster_desc(0x88)`, "a Dread") with a/an/the stripped (death only);
+  `depth` = `p_ptr->depth` (real depth also for a winner); `score` =
+  `total_points()` (what `enter_score()` stores and the list ranks by; 0 for a
+  new character, +1,000,000 for Morgoth); `turns` = `turn` (game turns, as the
+  score entry); `lvl` = `p_ptr->power` (Sangband has no levels; the score
+  record's `cur_lev` is "Current Player Power", 1..100).
+- **Missing / not sent**: no killer for win/quit; plain save & quit (`Q` of a
+  normal character, Ctrl-X) sends nothing (not a finished run); deleting a
+  savefile at the start menu sends nothing (no run end in the game's code).
+- **Killer art**: `roguelikes/killers/make.py` `sangband()` (own Gervais
+  32x32 = the default set, `web/tiles.png`; `graf32-g.prf` `R:<idx>:+row:+col`,
+  decimal, not the `0xAA/0xCC` the generic `angband()` parses; r_info has
+  `N:<idx>:` numbers); names stripped as `web_run_end()` does, duplicate names
+  (Novice mage, Ghost, ...) keep the first entry. 592 PNGs, spot-checked
+  (Morgoth, Queen Ant, Displacer beast, Nether wraith, Spectre, Kobold, Tom,
+  Grip, ...). Roguelikes commit `f395c82` on `claude/modest-davinci-rw8z6m`.
+- **Test** `web/test/stage9.mjs` (as before: `SRV`, `PORT`,
+  `PLAYWRIGHT_BROWSERS_PATH`; `KILLERS` = killers/sangband dir), beacons caught
+  with `context.route('**/roguelikes/beacon**')` + a wrapped `RvipWM.report`:
+  plain `Q` → nothing; death (debug DL60 + 30 summons) → one beacon with all 8
+  fields + id/at, killer art file exists; **win path reached for real**: DL101
+  (zap the level with count `0250` + `^A z`: DL101 often generates Morgoth, and a
+  unique can't be summoned twice), `^A n 768` Morgoth, his `hp`/`csleep`/
+  `mspeed`/`energy`/`stunned` poked in the wasm heap (scan for `r_idx` 768 next
+  to `web_where()`), melee kills him ("You have killed Morgoth, Lord of
+  Darkness!" → `total_winner`), `Q` "Do you want to retire?" `y` → `ev=win`;
+  quit: ironman (birth `=` options, `ironman_play`) `Q` → suicide → `@` →
+  `ev=quit`, with the outbox test (503 → one URL with `&id=&at=` in
+  `rvip-outbox`; 204 + `RvipWM.flush()` → same URL, outbox empty). All pass;
+  stage1-6 + resize still pass (stage5 now routes the beacon to 204 and
+  checks its death beacon: 53 checks; its zoom-centring check failed once when
+  the explorer started at the map edge x=127, passed on rerun: random level).
+
+## Import status: COMPLETE pending the Mac deploy/check (2026-09-28)
+All nine stages done in the cloud. Nothing is deployed and nothing is pushed by
+the stage agents (the orchestrator pushes `memmaker/sangband` main, roguelikes
+`claude/modest-davinci-rw8z6m`, rvip `claude/modest-davinci-rw8z6m`).
+
+**Mac steps (collected from stages 5-9):**
+1. Pull the pushed repos: `~/Games/sangband` (`git pull`), rvip-tools
+   (`~/Games/rvip-tools`: merge the branch; RVIP.md A-Sangband), roguelikes-index
+   (merge `claude/modest-davinci-rw8z6m` into `main`).
+2. Game: `cd ~/Games/sangband && sh web/build.sh && sh web/deploy.sh` (guard:
+   clean tree, HEAD = origin/main). Check `curl -s
+   https://ruzzoli.de/roguelikes/sangband/ | grep og:image` and play
+   https://ruzzoli.de/roguelikes/sangband/.
+3. Roguelikes: `cd ~/Games/roguelikes-index && git checkout main && git pull &&
+   ./order.py && ./deploy.sh`; check https://ruzzoli.de/roguelikes/ (Sangband
+   card + Info button), https://ruzzoli.de/roguelikes/#tree (Sangband 1994 →
+   1.0.2 2011 under Angband, ✦), https://ruzzoli.de/roguelikes/shrine/sangband.html
+   (+ manual files), the game page's title link to the shrine, and
+   https://ruzzoli.de/roguelikes/killers/sangband/morgoth--lord-of-darkness.png.
+4. In the Mac pane (by hand): layout and sidebar font sizes at small windows
+   (760×500: tile cells 6×12, sidebar text ~9 px), fonts from `../fonts`, real
+   key input (numpad, Shift+keypad, roguelike keyset `O`), tile zoom A−/A+,
+   look double-click, death screen flow, Sound/Music by ear (volumes 0.6 /
+   0.5 untested by ear).
+5. Beacon live: play a short game to a death with a normal browser (the
+   Claude browser UA is filtered) and check that the run appears on
+   https://ruzzoli.de/roguelikes/graveyard.html with the killer's picture
+   (after the 10-min cron), then the leaderboard.
+6. Docs: generate the Docs entry from `web/make-help.py --docs` into
+   `~/Desktop/Games/Roguelikes/Docs` (cloud had no Docs folder).
+7. Check the links the cloud couldn't open: Google Code archive links (help +
+   shrine), RogueBasin's 2 Sep 1994 date for the shrine lineage.
+8. Tick Sangband in `~/Games/RVIP-todo.md`.

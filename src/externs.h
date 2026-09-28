@@ -153,6 +153,7 @@ extern s16b map_cols;
 extern int web_map_step, web_map_vstep;
 extern void web_sync_files(void);
 extern void web_game_end(int dead);
+extern void web_run_end(void);
 #endif
 extern bool more_tall_display;
 extern bool map_display_precise_fit;
