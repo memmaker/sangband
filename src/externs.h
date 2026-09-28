@@ -149,6 +149,9 @@ extern int screen_depth;
 extern int main_screen_inactive;
 extern s16b map_rows;
 extern s16b map_cols;
+#ifdef USE_WEB
+extern int web_map_step, web_map_vstep;
+#endif
 extern bool more_tall_display;
 extern bool map_display_precise_fit;
 extern s16b clear_y;
@@ -342,6 +345,7 @@ extern bool feat_supports_lighting(byte feat);
 extern void map_info(int y, int x, byte *ap, char *cp, byte *tap, char *tcp);
 extern void move_cursor_relative(int y, int x);
 extern void print_rel(char c, byte a, int y, int x);
+extern void map_pad(int vx, int vy);
 extern void note_spot(int y, int x);
 extern void lite_spot(int y, int x);
 extern void map_animate(void);
@@ -667,6 +671,7 @@ extern bool poison_ammo(int num);
 extern void flavor_init(void);
 extern void easy_know_init(void);
 extern void reset_visuals(void);
+extern void object_text_glyph(const object_type *o_ptr, byte *a, char *c);
 extern s16b get_object_pval(const object_type *o_ptr, u32b flg);
 extern void object_flags(const object_type *o_ptr, u32b *f1, u32b *f2, u32b *f3);
 extern void object_flags_known(const object_type *o_ptr, u32b *f1, u32b *f2, u32b *f3);

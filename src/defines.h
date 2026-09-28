@@ -952,6 +952,19 @@
 #define COL_MAP         13
 
 /*
+ * Screen cells per map grid.  RVIP web: with tiles a grid is one big tile of
+ * MAP_STEP x MAP_VSTEP cells (square: text cells are half as wide as high);
+ * the other cells hold 255/255 pads the front end skips (map_pad()).
+ */
+#ifdef USE_WEB
+# define MAP_STEP       web_map_step
+# define MAP_VSTEP      web_map_vstep
+#else
+# define MAP_STEP       1
+# define MAP_VSTEP      1
+#endif
+
+/*
  * Quest types
  */
 #define QUEST_FIXED         1
@@ -4766,7 +4779,7 @@
  * Default to user definitions.
  */
 #define object_attr(T) \
-	((T)->marked >= COLORED_OBJ_MIN ? \
+	(((T)->marked >= COLORED_OBJ_MIN) && !((byte)object_char(T) & 0x80) ? \
 	 (T)->marked - COLORED_OBJ_MIN : (use_flavor_glyph(T)) ? \
 	 (flavor_info[k_info[(T)->k_idx].flavor].x_attr) : \
 	 (k_info[(T)->k_idx].x_attr))

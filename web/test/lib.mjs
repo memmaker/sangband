@@ -42,20 +42,27 @@ function shadowScript() {
 	window.__screen = (t) => Array.from(S[t] || [], (r) => Array.from(r || [], (c) => c || ' ').join(''));
 	const iv = setInterval(() => {
 		if (!window.Module || !Module.qb || Module.qb.__wrapped) return;
-		const q = Module.qb, text = q.text, wipe = q.wipe, clear = q.clear, pict = q.pict;
+		const q = Module.qb, text = q.text, wipe = q.wipe, clear = q.clear, pict = q.pict, curs = q.curs;
 		q.text = function (t, x, y, n, a, s) {
 			const r = row(t, y), H = Module.HEAPU8;
 			for (let i = 0; i < n; i++) r[x + i] = String.fromCharCode(H[s + i] || 32);
+			untile(t, x, y, n);
 			return text.apply(this, arguments);
 		};
-		q.wipe = function (t, x, y, n) { const r = row(t, y); for (let i = 0; i < n; i++) r[x + i] = ' '; return wipe.apply(this, arguments); };
-		q.clear = function (t) { S[t] = []; return clear.apply(this, arguments); };
-		q.pict = function (t, x, y, n, ap, cp) {
-			const r = row(t, y), H = Module.HEAPU8;
-			window.__picts = (window.__picts || 0) + n;
-			for (let i = 0; i < n; i++) { const k = H[cp + i]; r[x + i] = (H[ap + i] & 0x80) ? '#' : String.fromCharCode(k || 32); }
+		q.wipe = function (t, x, y, n) { const r = row(t, y); for (let i = 0; i < n; i++) r[x + i] = ' '; untile(t, x, y, n); return wipe.apply(this, arguments); };
+		q.clear = function (t) { S[t] = []; if (window.__tiles) window.__tiles[t] = {}; return clear.apply(this, arguments); };
+		const untile = (t, x, y, n) => { const T = window.__tiles && window.__tiles[t]; if (T) for (let i = 0; i < n; i++) delete T[(x + i) + ',' + y]; };
+		// One graphics cell (main-web.c): a tile shows as '#' in the shadow;
+		// window.__tiles[t]['x,y'] = [a, k, w, h] of the last tile drawn there
+		window.__tiles = {};
+		q.pict = function (t, x, y, a, k, ta, tk, w, h) {
+			const r = row(t, y), tile = (a & 0x80) && (k & 0x80);
+			window.__picts = (window.__picts || 0) + 1;
+			r[x] = tile ? '#' : String.fromCharCode(k || 32);
+			(window.__tiles[t] = window.__tiles[t] || {})[x + ',' + y] = tile ? [a & 0x7f, k & 0x7f, w, h] : null;
 			return pict.apply(this, arguments);
 		};
+		q.curs = function (t, x, y, w, h) { window.__curs = [t, x, y, w, h]; return curs.apply(this, arguments); };
 		q.__wrapped = true;
 		window.__shadowReady = true;
 		clearInterval(iv);

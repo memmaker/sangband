@@ -1319,6 +1319,11 @@ static void prt_equippy(void)
 		a = object_attr(o_ptr);
 		c = object_char(o_ptr);
 
+#ifdef USE_WEB
+		/* The sidebar stays text with tiles (RVIP: only the map is tiled) */
+		if (o_ptr->k_idx && (a & 0x80) && ((byte)c & 0x80)) object_text_glyph(o_ptr, &a, &c);
+#endif
+
 		/* No object -- clear with spaces */
 		if (!o_ptr->k_idx)
 		{

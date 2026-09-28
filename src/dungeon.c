@@ -3866,7 +3866,7 @@ void play_game(bool new_game)
 	display_change(DSP_UNLOCK, 0, 0);
 
 	/* Calculate the size of the map display, if not using a special map window */
-	if (!use_special_map) calc_map_size(Term->cols - COL_MAP, Term->rows - ROW_MAP - 1);
+	if (!use_special_map) calc_map_size((Term->cols - COL_MAP) / MAP_STEP, (Term->rows - ROW_MAP - 1) / MAP_VSTEP);
 
 
 	/* Start playing */

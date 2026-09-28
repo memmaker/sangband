@@ -41,6 +41,10 @@ static int web_want_save = 0;
 /* Last time we yielded to the browser */
 static double web_last_yield = 0;
 
+/* Big map tiles drawn since the main term's last flush (web_gen) */
+static u32b web_drawn[256][256];
+static u32b web_gen = 1;
+
 
 /* ---- JavaScript side (implemented in web/sangband.js) ---- */
 
@@ -56,13 +60,28 @@ EM_JS(void, js_clear, (int t), {
 	Module.qb.clear(t);
 });
 
-EM_JS(void, js_curs, (int t, int x, int y), {
-	Module.qb.curs(t, x, y);
+/* Cursor box of w x h cells (a big map tile is MAP_STEP x MAP_VSTEP) */
+EM_JS(void, js_curs, (int t, int x, int y, int w, int h), {
+	Module.qb.curs(t, x, y, w, h);
 });
 
-EM_JS(void, js_pict, (int t, int x, int y, int n, const byte *ap, const char *cp,
-                      const byte *tap, const char *tcp), {
-	Module.qb.pict(t, x, y, n, ap, cp, tap, tcp);
+/*
+ * One cell of a graphics call: a tile (a, c with the high bit: sheet row,
+ * column) over the terrain tile (ta, tc) drawn over w x h cells (a big map
+ * tile, a list icon over two cells, or one cell); otherwise the text glyph.
+ */
+EM_JS(void, js_pict, (int t, int x, int y, int a, int c, int ta, int tc, int w, int h), {
+	Module.qb.pict(t, x, y, a, c, ta, tc, w, h);
+});
+
+/* Tiles (1) or text (0) as the page's Tiles button says */
+EM_JS(int, js_tiles_wanted, (void), {
+	return Module.qb.tilesWanted();
+});
+
+/* Map zoom in tile mode (1..4): a grid is 2m x m cells */
+EM_JS(int, js_tile_mult, (void), {
+	return Module.qb.tileMult();
 });
 
 EM_JS(void, js_fresh, (int t), {
@@ -149,20 +168,61 @@ EMSCRIPTEN_KEEPALIVE int web_where(void)
 }
 
 
-/* Waiting for a command (the only safe moment for layout/save) */
+/* Waiting for a command (the only safe moment for layout/save/tiles) */
 static bool web_at_cmd(void)
 {
 	return (inkey_flag && character_generated);
 }
 
 
+/*
+ * Tiles: Sangband's own David Gervais 32x32 set ("32x32-g": tiles.prf loads
+ * lib/pref/graf32-g.prf; the page blits web/tiles.png), or text (the page's
+ * Tiles button: None).  With tiles a map grid is a big tile of 2m x m text
+ * cells (MAP_STEP x MAP_VSTEP, m = the map zoom), so the sidebar, the
+ * messages and the lists keep text cells half as wide as high.
+ */
+int web_map_step = 1, web_map_vstep = 1;
+static int web_mult = 1;
+
+/* The page's wish (web_set_tiles()), applied at the command prompt; -1 none */
+static int web_tiles_want = -1;
+
 /* The map view fills the main term (no special map window) */
 static void web_set_view(void)
 {
 	term *t = &web_term[0];
 
-	if (!use_special_map) calc_map_size(t->cols - COL_MAP, t->rows - ROW_MAP - 1);
+	web_map_vstep = use_graphics ? web_mult : 1;
+	web_map_step = use_graphics ? 2 * web_mult : 1;
+
+	if (!t->cols) return;
+	if (!use_special_map)
+		calc_map_size((t->cols - COL_MAP) / MAP_STEP, (t->rows - ROW_MAP - 1) / MAP_VSTEP);
 	if (character_generated) verify_panel(0, FALSE);
+}
+
+static void web_graphics(int on)
+{
+	use_graphics = arg_graphics = on ? GRAPHICS_DAVID_GERVAIS2 : GRAPHICS_NONE;
+	web_set_view();
+}
+
+/*
+ * The page's Tiles button (as FAangband's web_set_tiles()): 1 tiles, 0 none
+ * (native text: ascii.prf).  Applied by web_pump() at the command prompt,
+ * where the visuals reload and the whole screen, lists included, redraws.
+ */
+EMSCRIPTEN_KEEPALIVE void web_set_tiles(int on)
+{
+	web_tiles_want = on ? 1 : 0;
+}
+
+static void web_switch_graphics(int on)
+{
+	web_graphics(on);
+	reset_visuals();
+	do_cmd_redraw();
 }
 
 
@@ -230,6 +290,25 @@ static int web_pump(void)
 	web_apply_layout();
 
 	(void)Term_activate(&web_term[0]);
+
+	/* Tiles <-> text and map zoom: only while waiting for a command */
+	if (web_at_cmd())
+	{
+		if ((web_tiles_want >= 0) && (web_tiles_want != (use_graphics != GRAPHICS_NONE)))
+		{
+			web_tiles_want = -1;
+			web_switch_graphics(use_graphics == GRAPHICS_NONE);
+			got = 1;
+		}
+		else if (js_tile_mult() != web_mult)
+		{
+			web_mult = js_tile_mult();
+			web_set_view();
+			do_cmd_redraw();
+			got = 1;
+		}
+		web_tiles_want = -1;
+	}
 
 	while ((k = js_next_event(web_at_cmd())) >= 0)
 	{
@@ -308,6 +387,7 @@ static errr Term_xtra_web(int n, int v)
 			return (0);
 		case TERM_XTRA_FRESH:
 			js_fresh(web_idx());
+			if (!web_idx()) web_gen++;
 
 			/* The page plays town music at depth 0 */
 			js_depth(character_generated ? p_ptr->depth : -1);
@@ -327,28 +407,151 @@ static errr Term_xtra_web(int n, int v)
 	return (1);
 }
 
+/*
+ * Graphics cells.  A big map tile is its first cell followed by 255/255 pads
+ * (map_pad() in cave.c); any other tile followed by a blank is a list icon
+ * drawn over both cells (inventory, visible list); else it fills one cell.
+ */
+#define WEB_PAD(A, C)	(((A) == 255) && ((byte)(C) == 255))
+#define WEB_TILE(A, C)	(((A) & 0x80) && ((byte)(C) & 0x80) && !WEB_PAD(A, C))
+
+/* Cell (x, y) of the current term's wanted screen */
+static void web_cell(int x, int y, byte *a, char *c, byte *ta, char *tc)
+{
+	term_win *w = Term->scr;
+
+	*a = w->a[y][x];  *c = w->c[y][x];
+	*ta = w->ta[y][x];  *tc = w->tc[y][x];
+}
+
+static bool web_is_pad(int x, int y)
+{
+	if ((x < 0) || (y < 0) || (x >= Term->cols) || (y >= Term->rows)) return (FALSE);
+	return (WEB_PAD(Term->scr->a[y][x], Term->scr->c[y][x]));
+}
+
+static bool web_is_blank(int x, int y)
+{
+	if ((x >= Term->cols) || (y >= Term->rows)) return (FALSE);
+	return ((Term->scr->c[y][x] == ' ') && !(Term->scr->a[y][x] & 0x80));
+}
+
+/* A tile at (x, y) that shows as a two-cell list icon */
+static bool web_is_icon(int x, int y)
+{
+	byte a, ta;
+	char c, tc;
+
+	if ((x < 0) || (y < 0) || (x >= Term->cols) || (y >= Term->rows)) return (FALSE);
+	web_cell(x, y, &a, &c, &ta, &tc);
+	return (WEB_TILE(a, c) && !web_is_pad(x + 1, y) && web_is_blank(x + 1, y));
+}
+
+static void web_pict_cell(int x, int y, byte a, char c, byte ta, char tc)
+{
+	int t = web_idx(), w = 1, h = 1;
+
+	if (!WEB_TILE(a, c))
+	{
+		js_pict(t, x, y, a, (byte)c, ta, (byte)tc, 1, 1);
+		return;
+	}
+
+	if (web_is_pad(x + 1, y)) w = MAP_STEP, h = MAP_VSTEP;
+	else if (web_is_blank(x + 1, y))
+		w = 2;
+
+	js_pict(t, x, y, a, (byte)c, ta, (byte)tc, w, h);
+	if (!t) web_drawn[y][x] = web_gen;
+}
+
+static errr Term_pict_web(int x, int y, int n, const byte *ap, const char *cp,
+                          const byte *tap, const char *tcp)
+{
+	int i;
+
+	for (i = 0; i < n; i++, x++)
+	{
+		/* A pad: its big tile covers it (redraw the tile if it was not) */
+		if (WEB_PAD(ap[i], cp[i]))
+		{
+			int ax = COL_MAP + ((x - COL_MAP) / MAP_STEP) * MAP_STEP;
+			int ay = ROW_MAP + ((y - ROW_MAP) / MAP_VSTEP) * MAP_VSTEP;
+			byte a, ta;
+			char c, tc;
+
+			if (web_idx() || (ax < 0) || (ay < 0)) continue;
+			if (web_drawn[ay][ax] == web_gen) continue;
+
+			web_cell(ax, ay, &a, &c, &ta, &tc);
+			if (WEB_TILE(a, c)) web_pict_cell(ax, ay, a, c, ta, tc);
+			else js_wipe(0, x, y, 1);
+			continue;
+		}
+
+		web_pict_cell(x, y, ap[i], cp[i], tap[i], tcp[i]);
+	}
+
+	return (0);
+}
+
+/*
+ * After text or blanks: a list icon to the left of them lost its right half
+ * (draw it again); a big tile whose first cell they replaced leaves pads
+ * that show its old picture (blank them).
+ */
+static void web_after_text(int x, int y, int n)
+{
+	byte a, ta;
+	char c, tc;
+	int i;
+
+	if (web_is_icon(x - 1, y))
+	{
+		web_cell(x - 1, y, &a, &c, &ta, &tc);
+		js_pict(web_idx(), x - 1, y, a, (byte)c, ta, (byte)tc, 2, 1);
+	}
+
+	/* Pads right of the run whose big tile starts inside the run */
+	for (i = x + n; web_is_pad(i, y); i++)
+	{
+		int ax = COL_MAP + ((i - COL_MAP) / MAP_STEP) * MAP_STEP;
+		int ay = ROW_MAP + ((y - ROW_MAP) / MAP_VSTEP) * MAP_VSTEP;
+
+		if ((ay != y) || (ax < x) || (ax >= x + n)) break;
+		js_wipe(web_idx(), i, y, 1);
+	}
+}
+
 static errr Term_curs_web(int x, int y)
 {
-	js_curs(web_idx(), x, y);
+	int w = 1, h = 1;
+
+	/* No cursor on the hero (RVIP-Finetuning "Map") */
+	if (!web_idx() && character_generated && !use_special_map &&
+	    panel_contains(p_ptr->py, p_ptr->px) &&
+	    (x == COL_MAP + (p_ptr->px - p_ptr->wx) * MAP_STEP) &&
+	    (y == ROW_MAP + (p_ptr->py - p_ptr->wy) * MAP_VSTEP))
+		return (0);
+
+	/* On a big tile: around the whole tile */
+	if (web_is_pad(x + 1, y)) w = MAP_STEP, h = MAP_VSTEP;
+
+	js_curs(web_idx(), x, y, w, h);
 	return (0);
 }
 
 static errr Term_wipe_web(int x, int y, int n)
 {
 	js_wipe(web_idx(), x, y, n);
+	web_after_text(x, y, n);
 	return (0);
 }
 
 static errr Term_text_web(int x, int y, int n, byte a, cptr s)
 {
 	js_text(web_idx(), x, y, n, a, s);
-	return (0);
-}
-
-static errr Term_pict_web(int x, int y, int n, const byte *ap, const char *cp,
-                          const byte *tap, const char *tcp)
-{
-	js_pict(web_idx(), x, y, n, ap, cp, tap, tcp);
+	web_after_text(x, y, n);
 	return (0);
 }
 
@@ -421,7 +624,9 @@ errr init_web(int argc, char **argv)
 	max_system_colors = MAX_COLORS;
 	web_react();
 
-	use_graphics = arg_graphics = GRAPHICS_NONE;
+	/* Gervais tiles unless the page says text (None) */
+	web_mult = js_tile_mult();
+	web_graphics(js_tiles_wanted());
 
 	for (i = 0; i < WEB_TERMS; i++)
 	{

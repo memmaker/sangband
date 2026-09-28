@@ -1090,8 +1090,8 @@ void move_cursor_relative(int y, int x)
 	/* If not using a dedicated map term, convert to main screen coordinates */
 	if (!use_special_map)
 	{
-		ky += ROW_MAP;
-		kx += COL_MAP;
+		ky = ky * MAP_VSTEP + ROW_MAP;
+		kx = kx * MAP_STEP + COL_MAP;
 	}
 
 	/* If we are, then we need to place the cursor on the map */
@@ -1105,6 +1105,24 @@ void move_cursor_relative(int y, int x)
 
 	/* Restore old Term */
 	(void)Term_activate(old);
+}
+
+
+/*
+ * Big tiles (RVIP web, MAP_STEP x MAP_VSTEP cells per grid): fill the other
+ * cells of the grid at (vx, vy) with 255/255 pads, which the front end skips
+ * (it draws the whole tile for the first cell).
+ */
+void map_pad(int vx, int vy)
+{
+	int dx, dy;
+
+	if ((MAP_STEP == 1) && (MAP_VSTEP == 1)) return;
+	if (use_special_map) return;
+
+	for (dy = 0; dy < MAP_VSTEP; dy++)
+		for (dx = 0; dx < MAP_STEP; dx++)
+			if (dx || dy) Term_queue_char(vx + dx, vy + dy, 255, (char)255, 0, 0);
 }
 
 
@@ -1137,8 +1155,8 @@ void print_rel(char c, byte a, int y, int x)
 	/* If not using a dedicated map term, convert to main screen coordinates */
 	if (!use_special_map)
 	{
-		ky += ROW_MAP;
-		kx += COL_MAP;
+		ky = ky * MAP_VSTEP + ROW_MAP;
+		kx = kx * MAP_STEP + COL_MAP;
 	}
 
 	/* If we are, then we need to place the cursor on the map */
@@ -1149,6 +1167,7 @@ void print_rel(char c, byte a, int y, int x)
 
 	/* Hack -- Queue it */
 	Term_queue_char(kx, ky, a, c, 0, 0);
+	map_pad(kx, ky);
 
 	/* Restore old Term */
 	(void)Term_activate(old);
@@ -1253,8 +1272,8 @@ void lite_spot(int y, int x)
 	/* If not using a dedicated map term, convert to main screen coordinates */
 	if (!use_special_map)
 	{
-		ky += ROW_MAP;
-		kx += COL_MAP;
+		ky = ky * MAP_VSTEP + ROW_MAP;
+		kx = kx * MAP_STEP + COL_MAP;
 	}
 
 	/* Get the text or graphics for this grid */
@@ -1265,6 +1284,7 @@ void lite_spot(int y, int x)
 
 	/* Hack -- Queue it */
 	Term_queue_char(kx, ky, a, c, ta, tc);
+	map_pad(kx, ky);
 
 	/* Restore the previous term (if necessary) */
 	if (use_special_map) (void)Term_activate(old);
@@ -1447,8 +1467,8 @@ void prt_map(void)
 			/* Adjust for message bar and left panel if necessary */
 			if (!use_special_map)
 			{
-				vy = ky + ROW_MAP;
-				vx = kx + COL_MAP;
+				vy = ky * MAP_VSTEP + ROW_MAP;
+				vx = kx * MAP_STEP + COL_MAP;
 			}
 			else
 			{
@@ -1458,6 +1478,7 @@ void prt_map(void)
 
 			/* Hack -- Queue it */
 			Term_queue_char(vx, vy, a, c, ta, tc);
+			map_pad(vx, vy);
 		}
 	}
 

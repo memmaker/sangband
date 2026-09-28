@@ -520,6 +520,27 @@ void reset_visuals(void)
 
 
 /*
+ * The text symbol of an object (its edit-file glyph), whatever the pref
+ * files map it to: used where tiles must not appear (RVIP web sidebar).
+ */
+void object_text_glyph(const object_type *o_ptr, byte *a, char *c)
+{
+	const object_kind *k_ptr = &k_info[o_ptr->k_idx];
+
+	if (use_flavor_glyph(o_ptr))
+	{
+		*a = flavor_info[k_ptr->flavor].d_attr;
+		*c = flavor_info[k_ptr->flavor].d_char;
+	}
+	else
+	{
+		*a = k_ptr->d_attr;
+		*c = k_ptr->d_char;
+	}
+}
+
+
+/*
  * Given a pval-dependant flag, return the value it is modified by.
  *
  * All pvals are transferred to the object itself upon creation.
@@ -3092,6 +3113,33 @@ bool item_tester_okay(const object_type *o_ptr)
 /*
  * Choice window "shadow" of the "show_inven()" function
  */
+#ifdef USE_WEB
+# define LIST_ICON 2
+#else
+# define LIST_ICON 0
+#endif
+
+/*
+ * Inventory/equipment windows (RVIP web): the item's symbol, or with tiles
+ * its tile, at column 3 with a blank after it (the front end draws a tile
+ * followed by a blank as a square icon over both cells).
+ */
+static void list_icon(int row, const object_type *o_ptr)
+{
+	byte a = TERM_WHITE;
+	char c = ' ';
+
+	if (o_ptr->k_idx)
+	{
+		a = object_attr(o_ptr);
+		c = object_char(o_ptr);
+	}
+
+	(void)Term_putch(3, row, a, c);
+	(void)Term_putch(4, row, TERM_WHITE, ' ');
+}
+
+
 void display_inven(void)
 {
 	int i, n, z = 0;
@@ -3153,10 +3201,13 @@ void display_inven(void)
 		attr = tval_to_attr[o_ptr->tval % N_ELEMENTS(tval_to_attr)];
 
 		/* Display the entry itself */
-		(void)Term_putstr(3, i, n, attr, o_name);
+		(void)Term_putstr(3 + LIST_ICON, i, n, attr, o_name);
+
+		/* The item's symbol or tile (RVIP web: "a) ! name") */
+		if (LIST_ICON) list_icon(i, o_ptr);
 
 		/* Erase the rest of the line */
-		(void)Term_erase(3 + n, i, 255);
+		(void)Term_erase(3 + LIST_ICON + n, i, 255);
 
 		/* Display the weight if needed (and there's enough space) */
 		if ((w >= 75) && (show_weights) && (o_ptr->weight))
@@ -3267,10 +3318,13 @@ void display_equip(void)
 		attr = tval_to_attr[o_ptr->tval % N_ELEMENTS(tval_to_attr)];
 
 		/* Display the entry itself */
-		(void)Term_putstr(3, i - INVEN_WIELD, n, attr, o_name);
+		(void)Term_putstr(3 + LIST_ICON, i - INVEN_WIELD, n, attr, o_name);
+
+		/* The item's symbol or tile (RVIP web: "a) ! name") */
+		if (LIST_ICON) list_icon(i - INVEN_WIELD, o_ptr);
 
 		/* Erase the rest of the line */
-		(void)Term_erase(3 + n, i - INVEN_WIELD, 255);
+		(void)Term_erase(3 + LIST_ICON + n, i - INVEN_WIELD, 255);
 
 		/* Display the slot description if needed (and there's enough space) */
 		if ((show_labels) && (w >= 70))

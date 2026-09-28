@@ -153,3 +153,60 @@
   original does (sidebar text left of it stays); no mouse on sub-windows
   (inventory pane); wheel not mapped. No ASan run this stage (browser tests only).
 - **Next**: stage 4 (tiles: no sheets in `lib/xtra/graf`, see stage 1).
+
+### Stage 4 (tiles): done 2026-09-28 (cloud)
+- **Tile set: Sangband's own David Gervais 32x32** (`lib/xtra/graf/32x32.bmp`
+  + `32x32m.bmp`, copyright D. Gervais, palette tweaks by LM; readme.txt
+  there). Stage 1 was wrong: the source ships sheets; the Windows release
+  `sangband_windows_102.zip` has byte-identical sheets and prefs. One set
+  only, no other set mixed in (user rule, RVIP.md step 4).
+- **Candidates** (`python3 web/tile-coverage.py [prf]`; monsters w/o the
+  player, objects, flavours, features): Gervais `graf32-g.prf` as shipped
+  1494/1503 = **99.4%** (3 monsters + 6 objects missing/typo'd, 3 empty
+  tiles); after fixes **100%**; Adam Bolt `graf16-g.prf` 1368/1503 = 91.0%
+  ("not fully implemented" upstream; 16 px); `graf32-f` (terrain only)
+  18.8%; Shockbolt not needed (external, would be a second set).
+- **Pref fixes** (`lib/pref/graf32-g.prf`, gaps filled from the same
+  sheet): `B:` player lines `+3:/+18` → `+3/+18` (shifted 5 specialties),
+  `+4/71` (text 'G') and empty (4,44)/(4,70) → the race's own tiles;
+  Innkeeper `R:2:1:+9` → `+11:+9`; Shrieker 49 (was `R:367`), Giant
+  sapphire 7/14, Ghoul 20/81, Berserker 13/0, Athelas 2/21, Hatchet 10/32,
+  Chain Mail `K:193` (was a 2nd `K:192`), Magma scroll 7/75, Chaos essence
+  2/50 (`+2:+`), Pouch 6/95. Lurker/Trapper/Greater Unseen keep the empty
+  sprite on purpose (look like floor). Rods show their wand flavour (game
+  design: rods reuse wand flavours).
+- **Loader**: `web/mkgraf.py` → `web/tiles.png` (RGBA, 4096x960, 1.2 MB,
+  committed; mask bit 1 = transparent), `web/build.sh` copies it to dist.
+  Game side `src/main-web.c`: `use_graphics = GRAPHICS_DAVID_GERVAIS2`
+  ($GRAF `32x32-g` → `tiles.prf` → `graf32-g.prf`) or `GRAPHICS_NONE`
+  (ascii.prf); `web_set_tiles(int)` (exported, FAangband's name) applied at
+  the command prompt: `reset_visuals()` + `do_cmd_redraw()` (map, Inventory,
+  Visible redraw). Page button `Tiles: Gervais` ↔ `Tiles: None`, kept in
+  the layout file (`L.text`).
+- **Scale**: big tiles, a grid = `MAP_STEP x MAP_VSTEP` = 2m x m text cells
+  (m = map zoom 1..4, A−/A+ on the Map title bar in tile mode), square;
+  cell height from `L.gtile` (fits 80x24, e.g. 24 px at 1440x900).
+  Nearest-neighbour only (`imageSmoothingEnabled = false`). Code:
+  `defines.h` `MAP_STEP/MAP_VSTEP` (1 natively), `cave.c` `map_pad()` +
+  `move_cursor_relative/print_rel/lite_spot/prt_map`, `dungeon.c` and
+  `web_set_view()` `calc_map_size()` in grids, `xtra2.c` `mouse_grid()`.
+  `js_pict(t,x,y,a,c,ta,tc,w,h)` per cell, C decides the box (see RVIP.md
+  A-Sangband); cursor box = whole big tile, never on the hero.
+- **Lists**: Inventory/Equipment windows `a) X name` (symbol, or the tile
+  as a two-cell icon; `object1.c` `list_icon()`), Visible list icons (the
+  game's own `pict + blank + name`). Sidebar equippy chars stay text
+  (`object_text_glyph()`); `object_attr()` ignores shimmer colours when the
+  char is a tile.
+- **Test** `web/test/stage4.mjs` (as stage 1-3, `SHOTS=<dir>` for crops):
+  town big tiles, player sprite 3/7, no cursor on the hero, sidebar text,
+  Inventory + Visible icons, look cursor spans the tile, debug ring →
+  flavour tile on the map, DL1 unknown grids = black tile 0/0, zoom 4x2,
+  None → text map + `a) , Rations`, back, choice survives reload; all ok.
+  stage1-3 still pass. Screenshots looked at (town, ring, DL1, zoom, menus
+  over tiles, None); overlays (item list, Enter menu) leave no stale halves.
+- **Open**: tiles at the default 24 px scale 32→24 (NN, slightly uneven
+  pixels; 16/32/48 are clean); no statues/figurines in Sangband (statue
+  *monsters* have tiles); at zoom 2+ text over the first cell of a big tile
+  leaves the tile's lower rows until the next redraw; display_map (`M`)
+  draws 1-cell tiles (small); not checked in the Mac pane yet.
+- **Next**: stage 5 (web page: windows layout, deploy).

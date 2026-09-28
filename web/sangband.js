@@ -5,7 +5,8 @@
 (function () {
 	'use strict';
 
-	var TILE = 64;                 /* source tile size in tiles.webp (Shockbolt) */
+	var TILE = 32;                 /* source tile size in tiles.png (Sangband's own David Gervais 32x32, web/mkgraf.py) */
+	var TILESET = 'Gervais';
 	/* Sangband reads its system pref files from lib/pref (preloaded); lib/user
 	   holds only what the player writes, so it is persisted with the saves;
 	   the page's own settings live in /sangband/web */
@@ -66,9 +67,8 @@
 	var FONT = '"DejaVu Sans Mono", Menlo, Consolas, "Liberation Mono", monospace';
 	var GUT = 6, TITLE_H = 20, BORDER = 2;
 	var MIN_W = 90, MIN_H = 64, MAIN_MIN_W = 240, MAIN_MIN_H = 160;
-	var MULT = 1;   /* map grid = 2*MULT x MULT cells in tile mode (the game's MAP_STEP/MAP_VSTEP) */
 	var TILE_STEPS = [16, 20, 24, 28, 32, 36, 40, 44, 48, 56, 64];
-	/* Tile mode has square cells (no big-tile mode in 2.9.3): own zoom steps */
+	/* Tile mode: a map grid is 2 x 1 text cells (MAP_STEP in the game), cell height = tile size */
 	var GTILE_STEPS = [8, 10, 12, 14, 16, 20, 24, 28, 32, 40, 48, 64];
 	var LAYOUT_FILE = '/sangband/web/web-layout.json';
 	var SPLITS = ['side', 'bottom', 'inv', 'msg'];
@@ -415,18 +415,22 @@
 		updateMusic();
 	}
 
-	/* Tiles <-> text, applied by the game at its next command prompt */
-	var tilesSwitch = -1;
+	/*
+	 * Tiles button: cycles the tile sets, then None (one set here: Gervais
+	 * <-> None).  None is the game's own text mode: web_set_tiles(0), applied
+	 * at the next command prompt, where the visuals reload and the map, the
+	 * Inventory and the Visible list redraw.
+	 */
 	function toggleTiles() {
 		if (!tilesReady) return;
 		L.text = !L.text;
-		tilesSwitch = L.text ? 0 : 1;
+		if (Module._web_set_tiles) Module._web_set_tiles(L.text ? 0 : 1);
 		scheduleLayout();	/* map cells change width with the mode */
 		saveLayout();
 		renderTiles();
 	}
 	function tilesOn() { return tilesReady && !(L && L.text); }
-	function renderTiles() { $('btn-tiles').textContent = 'Tiles: ' + (tilesOn() ? 'Shockbolt' : 'None'); renderMapSel(); }
+	function renderTiles() { $('btn-tiles').textContent = 'Tiles: ' + (tilesOn() ? TILESET : 'None'); renderMapSel(); }
 	/* Map font select on the Map title bar, text mode only (shown on hover) */
 	var mapSel = document.createElement('select');
 	mapSel.className = 'map-font';
@@ -517,58 +521,55 @@
 			}
 		},
 
-		pict: function (t, x, y, n, ap, cp, tap, tcp) {
-			var T = terms[t], c = T.ctx, H = Module.HEAPU8, st = 1;
-			var w = T.cw, h = T.ch;
-			var sw = tiles.naturalWidth, sh = tiles.naturalHeight;
-			for (var i = 0; i < n; i++) {
-				var a = H[ap + i], k = H[cp + i];
-				/* Second cell of a big tile: drawn with the first */
-				if (a === 255 && k === 255) continue;
-				var ta = H[tap + i], tk = H[tcp + i];
-				var px = (x + i * st) * T.cw, py = y * T.ch;
+		/*
+		 * One graphics cell from the game (main-web.c decides everything):
+		 * tile a/k (sheet row/column | 0x80) over terrain ta/tk, in a box of
+		 * w x h cells: a big map tile (square cells), a list icon over two
+		 * cells, or one cell.  Icons keep the tile square, centred.
+		 * Nearest-neighbour only (imageSmoothingEnabled = false).
+		 */
+		pict: function (t, x, y, a, k, ta, tk, w, h) {
+			var T = terms[t], c = T.ctx;
+			var px = x * T.cw, py = y * T.ch, bw = w * T.cw, bh = h * T.ch;
+			c.fillStyle = '#000';
+			c.fillRect(px, py, bw, bh);
 
-				/* Not a tile: plain text in a graphics call */
-				if (!(a & 0x80) || !(k & 0x80) || !tilesReady) {
-					c.fillStyle = '#000';
-					c.fillRect(px, py, w, h);
-					if (k !== 32) {
-						c.fillStyle = color(a & 0x7F);
-						c.fillText(glyph(k), px + w / 2, py + h / 2 + 1);
-					}
-					continue;
+			/* Not a tile (or no sheet): the text glyph */
+			if (!(a & 0x80) || !(k & 0x80) || !tilesReady) {
+				if (k !== 32) {
+					c.fillStyle = color(a & 0x7F);
+					c.fillText(glyph(k), px + T.cw / 2, py + T.ch / 2 + 1);
 				}
-
-				var fx = (k & 0x7F) * TILE, fy = (a & 0x7F) * TILE;
-				var bx = (tk & 0x7F) * TILE, by = (ta & 0x7F) * TILE;
-				if (fx + TILE > sw || fy + TILE > sh) fx = fy = 0;
-				if (bx + TILE > sw || by + TILE > sh) bx = by = 0;
-
-				var tw = 2 * MULT * T.cw, th = MULT * h;	/* big tile: 2m x m cells */
-				c.fillStyle = '#000';
-				c.fillRect(px, py, tw, th);
-				if ((ta & 0x80) && (tk & 0x80) && (bx !== fx || by !== fy))
-					c.drawImage(tiles, bx, by, TILE, TILE, px, py, tw, th);
-				c.drawImage(tiles, fx, fy, TILE, TILE, px, py, tw, th);
+				return;
 			}
+
+			var sw = tiles.naturalWidth, sh = tiles.naturalHeight;
+			var fx = (k & 0x7F) * TILE, fy = (a & 0x7F) * TILE;
+			var bx = (tk & 0x7F) * TILE, by = (ta & 0x7F) * TILE;
+			if (fx + TILE > sw || fy + TILE > sh) fx = fy = 0;
+			if (bx + TILE > sw || by + TILE > sh) bx = by = 0;
+
+			var s = Math.min(bw, bh), dx = px + Math.floor((bw - s) / 2), dy = py + Math.floor((bh - s) / 2);
+			if ((ta & 0x80) && (tk & 0x80) && (bx !== fx || by !== fy))
+				c.drawImage(tiles, bx, by, TILE, TILE, dx, dy, s, s);
+			c.drawImage(tiles, fx, fy, TILE, TILE, dx, dy, s, s);
 		},
 
-		curs: function (t, x, y) {
-			var T = terms[t], c = T.ctx, w = 1;
+		/* w x h cells: a big map tile's box (the game never puts it on the hero) */
+		curs: function (t, x, y, w, h) {
+			var T = terms[t], c = T.ctx;
 			c.strokeStyle = '#ff0';
 			c.lineWidth = 1;
-			c.strokeRect(x * T.cw + 0.5, y * T.ch + 0.5, w * T.cw - 1, T.ch - 1);
+			c.strokeRect(x * T.cw + 0.5, y * T.ch + 0.5, w * T.cw - 1, h * T.ch - 1);
 		},
 
 		fresh: function (t) { if (!t) RvipWM.prompt.text(row0.join('')); },   /* the message line over the map */
 
 		bell: function () { },
 
-		/* Tiles button: the game asks at start and at each command prompt */
+		/* Tiles at start (the Tiles button later calls web_set_tiles()); map zoom, read at each command prompt */
 		tilesWanted: function () { return (tilesReady && !L.text) ? 1 : 0; },
-		tileMult: function () { return (L && L.mult) || 1; },
-		multApplied: function (m) { MULT = m; },
-		tilesSwitch: function () { var s = tilesSwitch; tilesSwitch = -1; return s; },
+		tileMult: function () { return (tilesOn() && L && L.mult) || 1; },
 
 		nextEvent: function (atCmd) {
 			RvipWM.prompt.wait(atCmd);
@@ -769,12 +770,14 @@
 	function tilesFinished(ok) {
 		tilesReady = ok;
 		tilesDone = true;
-		if (!ok) console.warn('no tile set (tiles.webp); using text');
+		if (!ok) console.warn('no tile set (tiles.png); using text');
 		if (L) renderTiles();
 		if (tilesWait) Module.removeRunDependency('tiles');
 	}
-	/* No tile set yet (RVIP stage 4): text only */
-	tilesFinished(false);
+	/* Sangband's own 32x32 sheet (lib/xtra/graf, web/mkgraf.py) */
+	tiles.onload = function () { tilesFinished(true); };
+	tiles.onerror = function () { tilesFinished(false); };
+	tiles.src = 'tiles.png';
 
 	document.addEventListener('keydown', onKey);
 	document.addEventListener('DOMContentLoaded', function () {

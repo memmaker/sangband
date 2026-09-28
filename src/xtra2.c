@@ -5047,6 +5047,24 @@ static int target_set_interactive_aux(int y, int x, int mode, cptr info)
 
 
 /*
+ * The dungeon grid under the mouse.  On the main term the map starts at
+ * ROW_MAP/COL_MAP and a grid may be several cells wide (MAP_STEP).
+ */
+static void mouse_grid(int *y, int *x)
+{
+	int my = cur_mouse_action.y, mx = cur_mouse_action.x;
+
+	if (!use_special_map)
+	{
+		my = (my - ROW_MAP) / MAP_VSTEP;
+		mx = (mx - COL_MAP) / MAP_STEP;
+	}
+
+	*y = p_ptr->wy + my;
+	*x = p_ptr->wx + mx;
+}
+
+/*
  * Handle "target" and "look".
  *
  * Note that this code can be called from "get_aim_dir()".
@@ -5135,8 +5153,7 @@ bool target_set_interactive(u16b mode)
 	if (mode & (TARGET_MOUS))
 	{
 		/* Jump to the mouse position */
-		y = cur_mouse_action.y + p_ptr->wy;
-		x = cur_mouse_action.x + p_ptr->wx;
+		mouse_grid(&y, &x);
 
 		/* Hack -- start off looking at all grids */
 		flag = FALSE;
@@ -5294,18 +5311,7 @@ bool target_set_interactive(u16b mode)
 					if (in_bounds(cur_mouse_action.y, cur_mouse_action.x))
 					{
 						/* Save the current location */
-						x = p_ptr->wx + cur_mouse_action.x;
-						y = p_ptr->wy + cur_mouse_action.y;
-
-						/*
-						 * If we are not using the special map, we need
-						 * to convert to map coordinates  XXX XXX
-						 */
-						if (!use_special_map)
-						{
-							x -= COL_MAP;
-							y -= ROW_MAP;
-						}
+						mouse_grid(&y, &x);
 
 						/* Go there */
 						move_cursor_relative(y, x);
@@ -5487,18 +5493,7 @@ bool target_set_interactive(u16b mode)
 					if (in_bounds(cur_mouse_action.y, cur_mouse_action.x))
 					{
 						/* Save the current location */
-						x = p_ptr->wx + cur_mouse_action.x;
-						y = p_ptr->wy + cur_mouse_action.y;
-
-						/*
-						 * If we are not using the special map, we need
-						 * to convert to map coordinates  XXX XXX
-						 */
-						if (!use_special_map)
-						{
-							x -= COL_MAP;
-							y -= ROW_MAP;
-						}
+						mouse_grid(&y, &x);
 
 						/* Go there */
 						move_cursor_relative(y, x);

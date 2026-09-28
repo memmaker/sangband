@@ -24,12 +24,12 @@ emcc -O2 -fcommon -std=gnu99 -DUSE_WEB -Isrc \
 	-o "$OUT/sangband-core.js" \
 	-sASYNCIFY -sASYNCIFY_STACK_SIZE=65536 -sSTACK_SIZE=1048576 \
 	-sALLOW_MEMORY_GROWTH -sINITIAL_MEMORY=64MB \
-	-sEXPORTED_FUNCTIONS=_main,_web_request_save,_web_where \
+	-sEXPORTED_FUNCTIONS=_main,_web_request_save,_web_where,_web_set_tiles \
 	-sEXPORTED_RUNTIME_METHODS=FS,IDBFS,HEAPU8,addRunDependency,removeRunDependency \
 	-sFORCE_FILESYSTEM -lidbfs.js -sENVIRONMENT=web \
 	--preload-file web/stage/lib@/sangband/lib
 
-cp web/index.html web/sangband.js "$OUT/"
+cp web/index.html web/sangband.js web/tiles.png "$OUT/"
 # Font choosers: the index page's fonts/*.woff (the page loads ../fonts/)
 FONTS="${FONTS:-$HOME/Games/roguelikes-index/fonts}"
 [ -d "$FONTS" ] || FONTS=/home/user/roguelikes/fonts
