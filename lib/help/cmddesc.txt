@@ -38,6 +38,16 @@ different).
 
 Inventory list (i) :
      Display a list of objects in your backpack.
+     The list has a cursor (2/8 or the arrow keys).  An item's letter does its
+main action (eat, quaff, read, aim/use/zap, cast, wear, take off, refuel, else
+inspect), Shift+letter drops it, Ctrl+letter inspects it; Enter, Space, 5 or a
+click open a menu of every action that fits, each with its key; + - * do the
+main action, drop, inspect on the cursor item; 4/6 or / switch to the
+equipment; Escape, 0 or . close.  After an action the list opens again unless
+a monster is in view.  Every item prompt ("Quaff which potion?") shows the
+list with a cursor too: 2/8 move, 5 or Enter choose, 4/6 switch between pack,
+equipment and floor; letters and @-tags work as before (only @1 @3 @7 @9 @0
+tags from the keypad, as 2 4 5 6 8 move the cursor).
 
 Equipment list (e) :
      Display a list of objects you are currently wielding, wearing, carrying in
@@ -413,6 +423,11 @@ systems.  See the visuals section for more information.
 
 
 --- Extra Commands ---
+
+Command menu (Enter) :
+     Opens a menu of all commands, grouped as in this file, with the key of
+the current keyset next to each.  2/8 or the arrow keys move, Enter, Space,
+5/6 or a click choose, the key shown picks directly, Escape or 4 goes back.
 
 Toggle Choice Window (Ctrl-E) :
      Toggle the display in any sub-windows (if available) that are displaying

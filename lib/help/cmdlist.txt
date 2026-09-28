@@ -51,7 +51,7 @@ roguelike keyset is likely to be the better choice.
  )  Take a screen shot                  ^J  (special - linefeed)
  {  Inscribe an item                    ^K  (unused)
  }  Uninscribe an item                  ^L  (unused)
- [  Use talents                         ^M  (special - return)
+ [  Use talents                         ^M  Command menu (Enter)
  ]  End/change shapechange              ^N  (unused)
  -  Walk (flip pickup)                  ^O  (unused)
  _  (unused)                            ^P  Show previous messages
@@ -122,7 +122,7 @@ Mouse commands (not available in all ports)
  )  Take a screen shot                  ^J  (alter - south)
  {  Inscribe an item                    ^K  (alter - north)
  }  Uninscribe an item                  ^L  (alter - east)
- [  Use talents                         ^M  (special - return)
+ [  Use talents                         ^M  Command menu (Enter)
  ]  End/change shapechange              ^N  (alter - south east)
  -  Walk (flip pickup)                  ^O  (unused)
  _  (unused)                            ^P  Show previous messages

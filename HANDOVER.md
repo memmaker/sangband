@@ -94,3 +94,62 @@
   browser (keymap reasoning only; `O` has no `C:1` line).
 - **Next**: stage 3 (Enter menu + inventory); the menu must list `H`/`O`
   explore and the `<`/`>` stair walks.
+
+### Stage 3 (Enter menu + inventory): done 2026-09-28 (cloud)
+- **Enter menu**: `cmd_menu()` at the end of `src/util.c` (Easyband's port,
+  groups as `lib/help/cmddesc.txt`): 13 groups in `cmd_menu_groups[]`
+  (Objects, Movement = `,` stay + `H`/`O` explore + `<`/`>` stair walks, no
+  walk/run/jump; Special actions, Doors/traps/digging, Spells/talents/skills
+  incl. `[` `p` `$` `]`, Using objects, Magical devices, Throwing, Information
+  incl. `^Q`, Messages, Saving, Preferences, Extra incl. `^V`). Opened in
+  `request_command()` right after `inkey()` on `\r`/`\n` when not shopping
+  and no keymap uses Enter; the chosen underlying command runs with
+  `skip_keymap` (Sangband's own flag). Keys shown for the current keyset by
+  `command_key()` (the key itself unless a keymap takes it, else the keymap
+  that runs exactly it; entry `alt` 'O' when 'H' has none: roguelike).
+  Generic boxed list `box_menu()` (sized to content, scrolls if taller than
+  the screen, `^`/`v` marks), keys via `menu_key()` = `inkey(ALLOW_CLICK)`:
+  arrows/keypad arrive as digits through the pref-x11.prf macros, so no
+  keysym parsing; left click chooses, right click / outside = back.
+- **Item menus**: `inven_screen()` at the end of `src/cmd3.c`
+  (`do_cmd_inven()/do_cmd_equip()` call it unless `command_shopping`).
+  Letter = main action, Shift = drop, Ctrl = inspect, 2/8 move, Enter/Space/5/
+  click = action box (`inv_action_menu()` → `box_menu()` right of the list),
+  `+ - *`, 4/6 or `/` switch lists, Esc/0/. close, other keys = commands.
+- **How item actions run: key queue + preselect.** `inv_act[]` {key, name,
+  pack/equip, test} in main-action order (E q r a u z A f m b w t F `(` v d k
+  I { }). `inv_run()` sets `get_item_preselect` + `get_item_preselect_on`,
+  `p_ptr->command_new = key`, `command_new_raw` (→ `skip_keymap`) and
+  `inven_reopen` = `i`/`e`. `get_item()` (`object1.c`) takes the preselect
+  first if the places, `get_item_okay()` and `get_item_allow()` accept it
+  (`repeat_push()` so `n`/`^V` repeat). `request_command()` clears the
+  preselect when no command is queued and queues the reopen when
+  `inven_may_reopen()` (no moving visible monster in LOS).
+- **Item prompts with a cursor**: `get_item()` always shows the list
+  (`command_see`), cursor from `show_list_*` (rows/slots recorded by
+  `show_inven/equip/floor()`; `show_list_cursor()`, `show_list_at()`); 2/8
+  move, 5/Enter/click choose, 4/6 cycle pack/equipment/floor; digit
+  @-tags win over cursor keys; quiver labels 1/3/7/9/0 still work directly
+  (2/4/5/6/8 are cursor keys). Lists are sized to content (`len = 0`), col
+  >= 2 for the `>` cursor.
+- **Mouse**: page `onMouse` now attached to the main canvas; `nextEvent()`
+  returns `0x1000000|button<<16|y<<8|x`, `web_pump()` queues `MOUSEKEY`,
+  button (2 L, 3 R, 4 L-double), x, y, `TERM_MAIN` (Sangband's own mouse
+  protocol; double-click = look is untested).
+- **Help**: cmddesc.txt "Inventory list" (item menus + prompts) and "Command
+  menu (Enter)"; cmdlist.txt `^M Command menu (Enter)`; page hint `Enter menu`.
+- **Test** `web/test/stage3.mjs` (as stage 1/2): 34 checks: groups, Movement
+  (H, < >, no walk/run), Escape back/close, wrap, menu runs V, menu →
+  inventory, cursor numpad/arrow, action box (Eat/Drop/Inspect with keys),
+  letter eats + list reopens (debug `^A z` first), torch letter wields, 6 →
+  equipment, Ctrl+letter inspects, Shift+letter drops, click opens the box,
+  right click closes, `I` prompt cursor + numpad 5, `w` prompt lists only the
+  torch + Enter wields, 6 switches the prompt, roguelike keyset (O, ^T, S,
+  f; `x` runs Look). stage1.mjs and stage2.mjs still pass (3d holds).
+- **Line endings**: `src/*.c` are CRLF (some mixed, e.g. cmd3.c, object1.c);
+  `main-web.c` LF. Python text-mode rewrites turn CRLF into LF: patch in
+  binary or restore endings (did so here).
+- **Open**: the item list overlays the sidebar from col (cols-80)*2/3 as the
+  original does (sidebar text left of it stays); no mouse on sub-windows
+  (inventory pane); wheel not mapped. No ASan run this stage (browser tests only).
+- **Next**: stage 4 (tiles: no sheets in `lib/xtra/graf`, see stage 1).

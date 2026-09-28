@@ -233,7 +233,16 @@ static int web_pump(void)
 
 	while ((k = js_next_event(web_at_cmd())) >= 0)
 	{
-		(void)Term_keypress(k);
+		/* A click: 0x1000000 | button << 16 | row << 8 | col (main term) */
+		if (k >= 0x1000000)
+		{
+			(void)Term_keypress(MOUSEKEY);
+			(void)Term_keypress((k >> 16) & 0xFF);
+			(void)Term_keypress(k & 0xFF);
+			(void)Term_keypress((k >> 8) & 0xFF);
+			(void)Term_keypress(TERM_MAIN);
+		}
+		else (void)Term_keypress(k);
 		got = 1;
 	}
 

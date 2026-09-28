@@ -574,7 +574,8 @@
 			RvipWM.prompt.wait(atCmd);
 			if (!events.length) return -1;
 			var e = events.shift();
-			if (e.mouse) return -1;	/* no mouse in this variant */
+			/* A click: MOUSEKEY button x y term in main-web.c web_pump() */
+			if (e.mouse) return 0x1000000 | (e.b << 16) | (e.y << 8) | e.x;
 			return e.k;
 		},
 
@@ -676,7 +677,9 @@
 		var x = Math.floor((e.clientX - r.left) / sx / T.cw);
 		var y = Math.floor((e.clientY - r.top) / sy / T.ch);
 		if (x < 0 || y < 0 || x >= T.cols || y >= T.rows) return;
-		events.push({ mouse: true, x: x, y: y, b: e.button === 2 ? 3 : e.button === 1 ? 2 : 1 });
+		if (e.button === 1) return;
+		/* Sangband's MOUSE_L_CLICK 2, MOUSE_R_CLICK 3, MOUSE_L_DBLCLICK 4 */
+		events.push({ mouse: true, x: x, y: y, b: e.button === 2 ? 3 : e.detail >= 2 ? 4 : 2 });
 		e.preventDefault();
 	}
 
@@ -777,6 +780,7 @@
 	document.addEventListener('DOMContentLoaded', function () {
 		var mainCv = document.querySelector('#t-main canvas');
 		mainCv.addEventListener('contextmenu', function (e) { e.preventDefault(); });
+		mainCv.addEventListener('mousedown', onMouse);
 		$('chk-sound').onchange = function () { toggleAudio('sound'); };
 		$('chk-music').onchange = function () { toggleAudio('music'); };
 		RvipWM.dropdown($('btn-audio'), $('menu-audio'));

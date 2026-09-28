@@ -3310,6 +3310,47 @@ void display_equip(void)
 
 
 /*
+ * RVIP: rows of the last item list drawn by show_inven(), show_equip() or
+ * show_floor(): row show_list_row[i] holds item show_list_idx[i] (floor
+ * items as -o_idx), labels at column show_list_col.  The cursor of the
+ * item menus and item prompts goes at show_list_col - 1.
+ */
+int show_list_col = 2;
+int show_list_n = 0;
+int show_list_end = 0;
+int show_list_row[64];
+int show_list_idx[64];
+
+/* RVIP: the item the next get_item() takes (cmd3.c inven_screen()) */
+int get_item_preselect = 0;
+bool get_item_preselect_on = FALSE;
+
+static void show_list_add(int row, int idx)
+{
+	if (show_list_n >= 64) return;
+	show_list_row[show_list_n] = row;
+	show_list_idx[show_list_n] = idx;
+	show_list_n++;
+}
+
+/* Draw the cursor at list entry "cur" */
+void show_list_cursor(int cur)
+{
+	if ((cur < 0) || (cur >= show_list_n)) return;
+	Term_putstr(show_list_col - 1, show_list_row[cur], 1, TERM_L_GREEN, ">");
+}
+
+/* The list entry on screen row "row" (-1 = none) */
+int show_list_at(int row)
+{
+	int i;
+
+	for (i = 0; i < show_list_n; i++) if (show_list_row[i] == row) return (i);
+	return (-1);
+}
+
+
+/*
  * Display the inventory.
  */
 void show_inven(void)
@@ -3331,8 +3372,8 @@ void show_inven(void)
 	int ammo_num = quiver_count();
 
 
-	/* Default length */
-	len = 79 - 50;
+	/* Default length (RVIP: sized to the content) */
+	len = 0;
 
 	/* Maximum space allowed for descriptions (columns - 4) */
 	lim = Term->cols - 4;
@@ -3391,8 +3432,13 @@ void show_inven(void)
 	/* Find the column to start in (move towards the right of the screen) */
 	col = MAX(0, (Term->cols - 80) * 2 / 3);
 
-	/* Remember the left margin (one-space margin unless at left edge already) */
-	l_margin = MAX(0, col - 1);
+	/* RVIP: room for the cursor left of the labels (sized to content) */
+	if (col < 2) col = 2;
+	l_margin = col - 2;
+	len++;
+	show_list_col = col;
+	show_list_end = col + len;
+	show_list_n = 0;
 
 	/* Output each entry */
 	for (j = 0; j < k; j++)
@@ -3405,6 +3451,9 @@ void show_inven(void)
 
 		/* Clear the text area */
 		put_str(format("%*s", len+1, ""), j+1, l_margin);
+
+		/* RVIP: remember the row */
+		show_list_add(j + 1, i);
 
 		/* Prepare an index --(-- */
 		(void)strnfmt(tmp_val, sizeof(tmp_val), "%c)", index_to_label(i));
@@ -3508,8 +3557,8 @@ void show_equip(void)
 	char out_desc[INVEN_PACK+1][DESC_LEN];
 
 
-	/* Default length */
-	len = 79 - 50;
+	/* Default length (RVIP: sized to the content) */
+	len = 0;
 
 	/* Maximum space allowed for descriptions (columns - 4) */
 	lim = Term->cols - 4;
@@ -3588,8 +3637,13 @@ void show_equip(void)
 	/* Find the column to start in (move towards the right of the screen) */
 	col = MAX(0, (Term->cols - 80) * 2 / 3);
 
-	/* Remember the left margin (one-space margin unless at left edge already) */
-	l_margin = MAX(0, col - 1);
+	/* RVIP: room for the cursor left of the labels (sized to content) */
+	if (col < 2) col = 2;
+	l_margin = col - 2;
+	len++;
+	show_list_col = col;
+	show_list_end = col + len;
+	show_list_n = 0;
 
 	/* Output each entry */
 	for (j = 0; j < k; j++)
@@ -3605,6 +3659,9 @@ void show_equip(void)
 
 		/* Leave a blank line if pouch is empty */
 		if ((i == INVEN_POUCH) && (!essence_count)) continue;
+
+		/* RVIP: remember the row */
+		show_list_add(j + 1, i);
 
 		/* Prepare an index --(-- */
 		(void)strnfmt(tmp_val, sizeof(tmp_val), "%c)", index_to_label(i));
@@ -3740,8 +3797,8 @@ void show_floor(const int *floor_list, int floor_num, bool gold, bool blind)
 	char out_desc[MAX_FLOOR_STACK][DESC_LEN];
 
 
-	/* Default length */
-	len = 79 - 50;
+	/* Default length (RVIP: sized to the content) */
+	len = 0;
 
 	/* Maximum space allowed for descriptions (columns - 4) */
 	lim = Term->cols - 4;
@@ -3797,8 +3854,13 @@ void show_floor(const int *floor_list, int floor_num, bool gold, bool blind)
 	/* Find the column to start in (move towards the right of the screen) */
 	col = MAX(0, (Term->cols - 80) * 2 / 3);
 
-	/* Remember the left margin (one-space margin unless at left edge already) */
-	l_margin = MAX(0, col - 1);
+	/* RVIP: room for the cursor left of the labels (sized to content) */
+	if (col < 2) col = 2;
+	l_margin = col - 2;
+	len++;
+	show_list_col = col;
+	show_list_end = col + len;
+	show_list_n = 0;
 
 	/* Output each entry */
 	for (j = 0; j < k; j++)
@@ -3811,6 +3873,9 @@ void show_floor(const int *floor_list, int floor_num, bool gold, bool blind)
 
 		/* Clear the text area */
 		put_str(format("%*s", len+1, ""), j+1, l_margin);
+
+		/* RVIP: remember the row */
+		show_list_add(j + 1, -i);
 
 		/* Prepare an index --(-- */
 		(void)strnfmt(tmp_val, sizeof(tmp_val), "%c)", index_to_label(j));
@@ -4215,6 +4280,35 @@ bool get_item(int *cp, cptr pmt, cptr str, int mode)
 	int equip_num = 0;
 	int inven_num = 0;
 
+	/* RVIP: cursor in the item list */
+	int cur = 0;
+	int cur_wrk = -1;
+
+	/* RVIP: the item chosen in the item menu (cmd3.c inven_screen()) */
+	if (get_item_preselect_on)
+	{
+		int it = get_item_preselect;
+		bool place_ok;
+
+		get_item_preselect_on = FALSE;
+
+		if (it < 0) place_ok = use_floor && (-it < o_max) &&
+			(o_list[-it].iy == py) && (o_list[-it].ix == px);
+		else if (it < INVEN_WIELD) place_ok = use_inven;
+		else place_ok = use_equip;
+
+		if (place_ok && get_item_okay(it) && get_item_allow(it))
+		{
+			item_tester_tval = 0;
+			item_tester_hook = NULL;
+			slot_tester_hook = NULL;
+			p_ptr->command_see = FALSE;
+			*cp = it;
+			repeat_push(it);
+			return (TRUE);
+		}
+	}
+
 	/* Get the item index */
 	if (repeat_pull(cp))
 	{
@@ -4375,11 +4469,8 @@ bool get_item(int *cp, cptr pmt, cptr str, int mode)
 		}
 	}
 
-	/* Option to always show a list */
-	if (always_show_list)
-	{
-		p_ptr->command_see = TRUE;
-	}
+	/* Option to always show a list (RVIP: always, it carries the cursor) */
+	p_ptr->command_see = TRUE;
 
 
 	/* Look up the "universal" tag  -AD- */
@@ -4556,6 +4647,16 @@ bool get_item(int *cp, cptr pmt, cptr str, int mode)
 			}
 		}
 
+		/* RVIP: the cursor (a new list starts at its top) */
+		if (cur_wrk != p_ptr->command_wrk) cur = 0;
+		cur_wrk = p_ptr->command_wrk;
+		if (p_ptr->command_see && show_list_n)
+		{
+			if (cur >= show_list_n) cur = show_list_n - 1;
+			show_list_cursor(cur);
+			(void)my_strcat(out_val, " 8/2 5,", sizeof(out_val));
+		}
+
 		/* Indicate that help is available */
 		if (p_ptr->get_help_index)
 		{
@@ -4572,7 +4673,74 @@ bool get_item(int *cp, cptr pmt, cptr str, int mode)
 		prt(tmp_val, 0, 0);
 
 		/* Get a key */
-		which = inkey(FALSE);
+		which = inkey(ALLOW_CLICK);
+
+		/* RVIP: cursor keys (@-tags win), click, 5/Enter choose */
+		if (which == MOUSEKEY)
+		{
+			int r = -1;
+
+			if ((cur_mouse_action.button == MOUSE_R_CLICK) ||
+			    (cur_mouse_action.button == MOUSE_R_DBLCLICK))
+			{
+				which = ESCAPE;
+			}
+			else
+			{
+				if (p_ptr->command_see) r = show_list_at(cur_mouse_action.y);
+				if (r < 0) continue;
+				cur = r;
+				which = '5';
+			}
+		}
+		if (p_ptr->command_see && show_list_n &&
+		    which && strchr("24568\r\n", which) &&
+		    !(isdigit((unsigned char)which) &&
+		      get_tag(&k, which, FALSE, FALSE, FALSE)))
+		{
+			int n = show_list_n;
+
+			if (which == '8') { cur = (cur + n - 1) % n; continue; }
+			if (which == '2') { cur = (cur + 1) % n; continue; }
+
+			if ((which == '4') || (which == '6'))
+			{
+				int places[3], np = 0, i;
+
+				if (allow_inven || (use_inven && !allow_equip && !allow_floor))
+					places[np++] = USE_INVEN;
+				if (allow_equip) places[np++] = USE_EQUIP;
+				if (allow_floor) places[np++] = USE_FLOOR;
+
+				for (i = 0; i < np; i++) if (places[i] == p_ptr->command_wrk) break;
+				if (i == np) i = 0;
+				i = (which == '6') ? (i + 1) % np : (i + np - 1) % np;
+				if (places[i] != p_ptr->command_wrk)
+				{
+					p_ptr->command_wrk = places[i];
+					screen_load();
+					screen_save(FALSE);
+				}
+				continue;
+			}
+
+			/* 5 / Enter: the item under the cursor */
+			k = show_list_idx[cur];
+			if (!get_item_okay(k))
+			{
+				bell("Illegal object choice!");
+				continue;
+			}
+			if (!get_item_allow(k))
+			{
+				done = TRUE;
+				continue;
+			}
+			(*cp) = k;
+			item = TRUE;
+			done = TRUE;
+			continue;
+		}
 
 		/* Parse it */
 		switch (which)
