@@ -1,6 +1,9 @@
 /*
  * Sangband in the browser: terminal rendering, input and save persistence.
  * The game (sangband-core.js / .wasm) calls into Module.qb (see main-web.c).
+ * The map (term 0) is the only canvas; every other window and the pop-up
+ * are HTML text lines from the game (RVIP W0 rule 6), list icons CSS
+ * sprites of tiles.png sized in em.
  */
 (function () {
 	'use strict';
@@ -65,7 +68,6 @@
 			FS.writeFile(SAVE_DIR + 'user.0.svg', '1' + m[1] + '@' + m[1] + ' (imported)\n');
 	}
 
-	var row0 = [];   /* the main term's message row (row 0), for RvipWM.prompt */
 
 	/* ---------- tiling window layout ---------- */
 
@@ -103,10 +105,11 @@
 
 	/* Font face per window: the map (text mode) has its own choice */
 	function face(i) { var n = L && (i ? L.face : L.mapFace); return n ? '"' + n + '", ' + FONT : FONT; }
-	function measure(fontPx, i) {
-		var c = document.createElement('canvas').getContext('2d');
-		c.font = fontPx + 'px ' + face(i);
-		return c.measureText('M').width;
+	var mctx = null;             /* the map canvas' context measures the map font */
+	function measure(fontPx) {
+		mctx = mctx || $('t-main').querySelector('canvas').getContext('2d');
+		mctx.font = fontPx + 'px ' + face(0);
+		return mctx.measureText('M').width;
 	}
 
 	function areaSize() {
@@ -209,10 +212,12 @@
 			save: function (st) { L.wm = st; saveLayout(); },
 			layout: function (r) {
 				rects = r;
-				TERMS.forEach(function (d, i) { if (terms[i]) fitCanvas(i); });
+				if (terms[0]) fitCanvas(0);
+				placePop();
 				scheduleSoon();
 			},
-			zoom: TERMS.reduce(function (z, t, i) { z[t.id] = i ? function () { scheduleLayout(); } : function (s, d) { zoomMain(d); }; return z; }, {}),   /* A-/A+: map tile steps, sub window font (the WM keeps the sizes) */
+			/* A-/A+: map tile steps; the text windows are the WM's (body font-size); the pop-up follows Messages */
+			zoom: { main: function (s, d) { zoomMain(d); }, msg: popFont },
 			onReset: resetLayout
 		});
 		wm.apply();
@@ -224,26 +229,21 @@
 		return { w: Math.max(1, r[2] - BORDER), h: Math.max(1, r[3] - BORDER - ($('game').classList.contains('wm-single') ? 0 : TITLE_H)) };
 	}
 
-	/* Cell size, font and cols/rows for a window at the current zoom */
+	/* Cell size, font and cols/rows of the map term at the current zoom */
 	function termShape(i) {
 		var box = inner(i), cw, ch, font, cols, rows;
-		if (!i) {
+		{
 			/* Text cells are half as wide as high; with tiles a grid is two
 			   cells (the game's big tiles, MAP_STEP in defines.h) */
 			ch = tilesOn() ? Math.min(L.gtile, defaultLayout().gtile) : L.tile; cw = ch / 2;   /* tiles: cells fit 80x24, A+ zooms the grid */
 			font = Math.floor(Math.min(ch * 0.8, cw / 0.62));
 			/* text mode: cells from the map font, so wide fonts do not overlap */
-			if (!tilesOn()) { cw = Math.ceil(measure(font, 0)); ch = Math.round(font * 1.3); }
+			if (!tilesOn()) { cw = Math.ceil(measure(font)); ch = Math.round(font * 1.3); }
 			/* tile mode: the cells are the grid's; a wide font gets smaller to fit them */
-			else while (font > 6 && measure(font, 0) > cw) font--;
+			else while (font > 6 && measure(font) > cw) font--;
 			/* The game fits its map view to the term (web_set_view()); 80x24 at least */
 			cols = clamp(Math.floor(box.w / cw), 80, 255);
 			rows = clamp(Math.floor(box.h / ch), 24, 255);
-		} else {
-			font = RvipWM.fontSize(TERMS[i].id);
-			cw = Math.ceil(measure(font, i)); ch = Math.round(font * 1.3);
-			cols = clamp(Math.floor(box.w / cw), 1, 255);
-			rows = clamp(Math.floor(box.h / ch), 1, 255);
 		}
 		return { cols: cols, rows: rows, cw: cw, ch: ch, font: font, face: face(i) };
 	}
@@ -289,10 +289,11 @@
 		loadLayout();
 		makeWM();
 		renderMapSel();
-		TERMS.forEach(function (d, i) {
-			var l = termShape(i);
-			configureTerm(i, l, l.cols, l.rows);
-		});
+		var l = termShape(0);
+		configureTerm(0, l, l.cols, l.rows);
+		TERMS.forEach(function (d, i) { if (i) textPane(i, document.querySelector('#t-' + d.id + ' pre')); });
+		textPane(P_POP, document.querySelector('#pop pre'));
+		applyFace(); popFont();
 	}
 
 	/*
@@ -309,11 +310,9 @@
 	function scheduleLayout() {
 		if (!terms.length) return;
 		dpr = Math.max(1, Math.min(3, window.devicePixelRatio || 1));
-		pending = TERMS.map(function (d, i) {
-			var l = termShape(i);
-			/* Unchanged terms need no work (unless the pixel ratio changed) */
-			return (!rects[d.id] || (sameShape(terms[i], l) && terms[i].dpr === dpr)) ? null : l;
-		});
+		/* only the map term follows its window; unchanged needs no work (unless the pixel ratio changed) */
+		var l = termShape(0);
+		pending = [(!rects.main || (sameShape(terms[0], l) && terms[0].dpr === dpr)) ? null : l];
 	}
 
 	/* Throttled version for live dragging */
@@ -414,6 +413,75 @@
 		if (b === 2) return '\u2592';
 		if (b < 32 || b === 127) return ' ';
 		return String.fromCharCode(b);
+	}
+
+	/* ---------- text windows (RVIP W0 rule 6): HTML lines from the game ----------
+	 * main-web.c web_row(): each changed row trimmed, colour runs "\x05#rrggbb" ..
+	 * "\x06", the cursor cell "\x01" .. "\x06", a tile icon "\x07" + a c ta tc (hex)
+	 * + width in cells; then the rows in use.  Text size = the WM's body font-size
+	 * (A-/A+ per window); the pop-up has the Messages size. */
+	var P_POP = TERMS.length;
+	var txt = [];                /* pane -> {el, lines, n, end} */
+	var pop = { x: -1, y: -1 };  /* the pop-up's first cell on term 0 */
+	function textPane(p, el) { el.textContent = ''; txt[p] = { el: el, lines: [], n: 0, end: null }; }
+	function mark(T) {           /* before a change: was the window at its end? */
+		var b = T.el.parentNode;
+		if (T.end == null) T.end = b.scrollTop + b.clientHeight >= b.scrollHeight - 4;
+	}
+	function esc(s) { return s.replace(/&/g, '&amp;').replace(/</g, '&lt;'); }
+	var TOK = /\x05#[0-9a-f]{6}|\x07[0-9a-f]{8}\d|[\x01\x06]|[^\x01\x05\x06\x07]+/g;
+	var SHEET_COLS = 128, SHEET_ROWS = 30, IC = 1.2;   /* tiles.png: 128 x 30 tiles; icon side in em */
+	function sprite(a, k) {
+		return 'url(tiles.png) ' + -(k & 0x7F) * IC + 'em ' + -(a & 0x7F) * IC + 'em / ' + SHEET_COLS * IC + 'em ' + SHEET_ROWS * IC + 'em no-repeat';
+	}
+	/* A tile icon (object/monster over its terrain) spanning w cells */
+	function iconHtml(t) {
+		var a = parseInt(t.substr(1, 2), 16), k = parseInt(t.substr(3, 2), 16), ta = parseInt(t.substr(5, 2), 16), tk = parseInt(t.substr(7, 2), 16);
+		var bg = sprite(a, k);
+		if ((ta & 0x80) && (tk & 0x80) && (ta !== a || tk !== k)) bg += ', ' + sprite(ta, tk);
+		return '<span class="ic" style="width:' + t.charAt(9) + 'ch"><span style="background:' + bg + '"></span></span>';
+	}
+	function rowHtml(s) {
+		var out = '', len = 0;
+		(s.match(TOK) || []).forEach(function (a) {
+			if (a === '\x01') out += '<span class="cu">';
+			else if (a === '\x06') out += '</span>';
+			else if (a[0] === '\x05') out += '<span style="color:' + a.slice(1) + '">';
+			else if (a[0] === '\x07') { out += iconHtml(a); len += +a.charAt(9); }
+			else { out += esc(a); len += a.length; }
+		});
+		return [out, len];
+	}
+	function drawRow(T, y) {
+		var d = T.el.children[y];
+		if (!d) return;
+		var h = rowHtml(T.lines[y] || '');
+		d.innerHTML = h[0]; d._len = h[1];
+	}
+	/* the top-bar font on every text window and the pop-up (the map has its own) */
+	function applyFace() {
+		var f = face(1);
+		document.querySelectorAll('pre.txt').forEach(function (e) { e.style.fontFamily = f; });
+	}
+	function popFont() { $('pop').style.fontSize = RvipWM.fontSize('msg') + 'px'; placePop(); }
+	/* at the pop-up's own cell over the map (the map term's cell size), inside the game area */
+	function placePop() {
+		var P = $('pop'), T = terms[0];
+		if (P.hidden || !T || pop.x < 0 || !rects.main) return;
+		var sc = parseFloat(T.cv.style.width) / (T.cols * T.cw) || 1, dy = Math.round(pop.y * T.ch * sc);
+		P.style.marginTop = dy + 'px';
+		RvipWM.popup(P, { x: Math.round(pop.x * T.cw * sc) });
+		P.style.maxHeight = Math.max(40, RvipWM.popupBox().h - dy) + 'px';
+	}
+	/* A click on a pop-up row: the game's mouse key at that term 0 cell (menus, item lists) */
+	function onPopMouse(e) {
+		if (!app.running || e.button === 1) return;
+		var d = e.target.closest && e.target.closest('#pop pre > div');
+		e.preventDefault();
+		if (!d) return;
+		var y = Array.prototype.indexOf.call(d.parentNode.children, d), r = d.getBoundingClientRect();
+		var x = d._len ? Math.floor((e.clientX - r.left) / (r.width / d._len)) : 0;
+		events.push({ mouse: true, x: Math.min(254, pop.x + Math.max(0, x)), y: pop.y + y, b: e.button === 2 ? 3 : e.detail >= 2 ? 4 : 2 });
 	}
 
 	/*
@@ -528,7 +596,7 @@
 	}
 	/* Fonts: faces from the index page's fonts/ (web/build.sh lists them) */
 	function loadFace(n, now) {
-		var redraw = function () { if (terms.length) scheduleLayout(); };
+		var redraw = function () { applyFace(); if (terms.length) scheduleLayout(); };
 		if (!n) { if (now) redraw(); return; }
 		var ff = new FontFace(n, 'url(../fonts/' + n + '.woff)');
 		ff.load().then(function () { document.fonts.add(ff); redraw(); })
@@ -580,7 +648,6 @@
 		},
 
 		clear: function (t) {
-			if (!t) row0 = [];
 			var T = terms[t];
 			T.ctx.fillStyle = '#000';
 			T.ctx.fillRect(0, 0, T.cols * T.cw, T.rows * T.ch);
@@ -588,14 +655,12 @@
 
 		wipe: function (t, x, y, n) {
 			var T = terms[t];
-			if (!t && !y) for (var j = 0; j < n; j++) row0[x + j] = ' ';
 			T.ctx.fillStyle = '#000';
 			T.ctx.fillRect(x * T.cw, y * T.ch, n * T.cw, T.ch);
 		},
 
 		text: function (t, x, y, n, a, s) {
 			var T = terms[t], c = T.ctx, H = Module.HEAPU8, st = 1;
-			if (!t && !y) for (var j = 0; j < n; j++) row0[x + j] = String.fromCharCode(H[s + j] || 32);
 			c.fillStyle = '#000';
 			c.fillRect(x * T.cw, y * T.ch, n * st * T.cw, T.ch);
 			c.fillStyle = color(a);
@@ -648,7 +713,29 @@
 			c.strokeRect(x * T.cw + 0.5, y * T.ch + 0.5, w * T.cw - 1, h * T.ch - 1);
 		},
 
-		fresh: function (t) { if (!t) RvipWM.prompt.text(row0.join('')); },   /* the message line over the map */
+		fresh: function () { },
+		prompt: function (s) { RvipWM.prompt.text(s); },   /* term 0 row 0 over the map (main-web.c) */
+		line: function (p, y, s) {
+			var T = txt[p];
+			if (!T) return;
+			mark(T);
+			T.lines[y] = s;
+			if (y < T.n) drawRow(T, y);
+		},
+		rows: function (p, n) {
+			var T = txt[p];
+			if (!T) return;
+			mark(T);
+			while (T.el.children.length < n) { T.el.appendChild(document.createElement('div')); drawRow(T, T.el.children.length - 1); }
+			while (T.el.children.length > n) T.el.removeChild(T.el.lastChild);
+			T.n = n;
+			if (p === P_POP) { $('pop').hidden = !n; placePop(); }
+			/* a window that was at its end (Messages) stays there; scrolled up, it stays put */
+			if (T.end) T.el.parentNode.scrollTop = T.el.parentNode.scrollHeight;
+			T.end = null;
+		},
+		/* the pop-up's first cell on term 0 (-1: none): shown there over the map */
+		popAt: function (x, y) { pop.x = x; pop.y = y; if (x < 0) { txt[P_POP].lines = []; } placePop(); },
 
 		bell: function () { },
 
@@ -865,6 +952,8 @@
 		var mainCv = document.querySelector('#t-main canvas');
 		mainCv.addEventListener('contextmenu', function (e) { e.preventDefault(); });
 		mainCv.addEventListener('mousedown', onMouse);
+		$('pop').addEventListener('mousedown', onPopMouse);
+		$('pop').addEventListener('contextmenu', function (e) { e.preventDefault(); });
 		$('chk-sound').onchange = function () { toggleAudio('sound'); };
 		$('chk-music').onchange = function () { toggleAudio('music'); };
 		RvipWM.dropdown($('btn-audio'), $('menu-audio'));

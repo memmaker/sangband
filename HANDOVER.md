@@ -498,3 +498,32 @@ the stage agents (the orchestrator pushes `memmaker/sangband` main, roguelikes
 7. Check the links the cloud couldn't open: Google Code archive links (help +
    shrine), RogueBasin's 2 Sep 1994 date for the shrine lineage.
 8. Tick Sangband in `~/Games/RVIP-todo.md`.
+
+### W0 rule 6 (text windows as HTML): done 2026-09-29 (Mac, pilot for the z-term ports)
+- **Only canvas = the map** (term 0: map + sidebar + status as before).
+  Terms 1..6 have fixed sizes (`web_cols[]`/`web_rows[]` in `main-web.c`;
+  Messages 120x200 history) and never follow their window; their hooks draw
+  nothing, `TERM_XTRA_FRESH` runs `web_sub_fresh()`.
+- **C→JS**: `line(pane, y, s)` (only changed rows, FNV hash per row),
+  `rows(pane, n)` (rows in use; always after lines = end of a batch),
+  `popAt(x, y)` (pop-up's first term-0 cell, -1 none), `prompt(s)` (term 0
+  row 0 → `RvipWM.prompt`). Row format from `web_row()`: trimmed, colour runs
+  `\x05#rrggbb`..`\x06` from `color_table[]`, cursor cell `\x01`..`\x06`,
+  tile icon `\x07` + hex a c ta tc + width (2 = tile + blank, list icon).
+- **Pop-up** (pane 7 = `WEB_POP`): while `!character_generated ||
+  screen_depth > 0`, term 0 is not drawn on the canvas; `web_main_fresh()`
+  sends the cells of rows 1.. that differ from the saved screen
+  (`Term->mem`, or all non-blank before play) as a box; the page shows it
+  as `<pre>` in `#pop` at that cell over the map (map cell size), font =
+  Messages size. Covers birth, splash, item prompts, Enter menu, stores,
+  character sheet, death screens. When it ends `web_repaint()` paints the
+  canvas whole from `Term->scr`. Clicks on pop-up rows → MOUSEKEY at the cell.
+- Page: `<pre class="txt">` per window (WM body font-size, A−/A+ per
+  window), icons = CSS sprites of tiles.png in em, font chooser = CSS
+  font-family on `pre.txt`, a window at its end stays at its end.
+- Tests (browser pane): no `createElement('canvas')` in play, 1 canvas;
+  birth, walk, messages follow/stay, inventory/equipment/visible icons,
+  tiles None → glyphs, recall, item prompt, Enter menu + click, `C` sheet,
+  store, A−/A+, divider drag, font, map zoom, reload. `web/test/*.mjs`
+  still read a shadow of `qb.text` (term 0 only): pop-up text now comes
+  through `qb.line` (pane 7): update `lib.mjs` before the next cloud run.
