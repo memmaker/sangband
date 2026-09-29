@@ -39,7 +39,19 @@ export async function open(port = PORT, opts = {}) {
 function shadowScript() {
 	const S = {};
 	function row(t, y) { S[t] = S[t] || []; S[t][y] = S[t][y] || []; return S[t][y]; }
-	window.__screen = (t) => Array.from(S[t] || [], (r) => Array.from(r || [], (c) => c || ' ').join(''));
+	// Text panes (main-web.c line/rows): 7 = the pop-up over term 0 (at popAt), 8 = Status
+	const P = {}, at = { x: -1, y: -1 };
+	const plain = (l) => (l || '').replace(/\x05#[0-9a-f]{6}|[\x01\x06]/g, '').replace(/\x07[0-9a-f]{8}(\d)/g, (m, w) => '#'.padEnd(+w));
+	window.__pane = (p) => (P[p] || []).map(plain);
+	// Term 0 as the player sees it: the pop-up's rows laid over the term's own
+	window.__screen = (t) => {
+		const rows = Array.from(S[t] || [], (r) => Array.from(r || [], (c) => c || ' ').join(''));
+		if (t === 0 && at.x >= 0) window.__pane(7).forEach((l, i) => {
+			const y = at.y + i, r = (rows[y] || '').padEnd(at.x + l.length);
+			rows[y] = r.slice(0, at.x) + l + r.slice(at.x + l.length);
+		});
+		return rows;
+	};
 	const iv = setInterval(() => {
 		if (!window.Module || !Module.qb || Module.qb.__wrapped) return;
 		const q = Module.qb, text = q.text, wipe = q.wipe, clear = q.clear, pict = q.pict, curs = q.curs;
@@ -63,10 +75,19 @@ function shadowScript() {
 			return pict.apply(this, arguments);
 		};
 		q.curs = function (t, x, y, w, h) { window.__curs = [t, x, y, w, h]; return curs.apply(this, arguments); };
+		const line = q.line, rowsF = q.rows, popAt = q.popAt;
+		q.line = function (p, y, l) { (P[p] = P[p] || [])[y] = l; return line.apply(this, arguments); };
+		q.rows = function (p, n) { (P[p] = P[p] || []).length = n; return rowsF.apply(this, arguments); };
+		q.popAt = function (x, y) { at.x = x; at.y = y; if (x < 0) P[7] = []; return popAt.apply(this, arguments); };
 		q.__wrapped = true;
 		window.__shadowReady = true;
 		clearInterval(iv);
 	}, 5);
+}
+
+// The Status window (sidebar rows, then the status-line groups)
+export async function status(page) {
+	return (await page.evaluate(() => window.__pane(8))).join('\n');
 }
 
 export async function screen(page, t = 0) {

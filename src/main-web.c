@@ -110,6 +110,14 @@ EM_JS(void, js_pop_at, (int x, int y), {
 	Module.qb.popAt(x, y);
 });
 
+/*
+ * The map canvas shows only term 0's map area: cells from (x, y) on, minus
+ * the bottom status rows; the sidebar and the status line are the Status pane
+ */
+EM_JS(void, js_origin, (int x, int y, int bottom), {
+	Module.qb.origin(x, y, bottom);
+});
+
 /* Term 0 row 0 (messages, questions): RvipWM.prompt */
 EM_JS(void, js_prompt, (const char *s), {
 	Module.qb.prompt(UTF8ToString(s));
@@ -246,13 +254,14 @@ EMSCRIPTEN_KEEPALIVE int web_where(void)
 #define WEB_PAD(A, C)	(((A) == 255) && ((byte)(C) == 255))
 #define WEB_TILE(A, C)	(((A) & 0x80) && ((byte)(C) & 0x80) && !WEB_PAD(A, C))
 #define WEB_POP		WEB_TERMS
+#define WEB_STAT	(WEB_TERMS + 1)
 static const int web_cols[WEB_TERMS] = { 0, 56, 120, 50, 64, 56, 80 };
 static const int web_rows[WEB_TERMS] = { 0, 26, 200, 60, 60, 16, 24 };
 
 /* A hash of what the page shows per pane row, and rows in use */
-static u32b web_hash[WEB_TERMS + 1][256];
-static int web_nrows[WEB_TERMS + 1];
-static bool web_sent[WEB_TERMS + 1];	/* a line went out: rows() ends the batch */
+static u32b web_hash[WEB_TERMS + 2][256];
+static int web_nrows[WEB_TERMS + 2];
+static bool web_sent[WEB_TERMS + 2];	/* a line went out: rows() ends the batch */
 static int web_pop_x = -1, web_pop_y = -1;
 static u32b web_prompt_hash = 1;
 
@@ -408,6 +417,38 @@ static void web_sub_fresh(int i)
 }
 
 /*
+ * The Status pane: the sidebar (term 0 rows ROW_MAP.., columns left of the
+ * map) down to its last used row, then the status line (last row) as its
+ * groups, one per line (runs of cells split at two or more blanks).
+ */
+static void web_status(void)
+{
+	term_win *w = Term->scr;
+	int y, x, n = 0, last = 0, st = Term->rows - 1;
+
+	for (y = ROW_MAP; y < st; y++)
+	{
+		if (web_row(w, NULL, COL_MAP, y, 0, -1, -1)) last = y - ROW_MAP + 1;
+		web_send(WEB_STAT, y - ROW_MAP, web_buf);
+	}
+	n = last;
+
+	for (x = 0; x < Term->cols; )
+	{
+		int e, gap;
+
+		if (((byte)w->c[st][x] == ' ') && !(w->a[st][x] & 0x80)) { x++; continue; }
+		for (e = x, gap = 0; (e < Term->cols) && (gap < 2); e++)
+			gap = (((byte)w->c[st][e] == ' ') && !(w->a[st][e] & 0x80)) ? gap + 1 : 0;
+		if (last && (n == last)) web_send(WEB_STAT, n++, "");	/* a blank row before the groups */
+		(void)web_row(w, NULL, e, st, x, -1, -1);
+		web_send(WEB_STAT, n++, web_buf);
+		x = e;
+	}
+	web_send_rows(WEB_STAT, n);
+}
+
+/*
  * Term 0 after its Term_fresh(): row 0 to the prompt line; a pop-up (the
  * cells that differ from the saved screen, rows 1..) to the pop-up pane.
  */
@@ -421,6 +462,7 @@ static void web_main_fresh(void)
 	/* A pop-up ended: the map canvas shows term 0 again */
 	if (!web_pop_on() && was_pop) web_repaint();
 	was_pop = web_pop_on();
+	if (!was_pop) web_status();
 
 	/* The prompt line: row 0 as plain text */
 	for (x = 0; x < Term->cols; x++)
@@ -971,6 +1013,9 @@ errr init_web(int argc, char **argv)
 	/* All 128 colours (as main-sdl.c) */
 	max_system_colors = MAX_COLORS;
 	web_react();
+
+	/* The canvas: term 0's map area only (before the page asks for sizes) */
+	js_origin(COL_MAP, ROW_MAP, 1);
 
 	/* Gervais tiles unless the page says text (None) */
 	web_mult = js_tile_mult();

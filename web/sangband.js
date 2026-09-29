@@ -131,7 +131,8 @@
 		GTILE_STEPS.forEach(function (t) { if (t <= gfit) gtile = t; });
 		/* auto*: still following the window size (not customised yet) */
 		return { v: 1, tile: tile, gtile: gtile, titles: {}, autoSplit: true, autoTile: true,
-			split: { side: (W - sideW) / W, bottom: (H - botH) / H, inv: 0.46, msg: 0.6 } };
+			split: { side: (W - sideW) / W, bottom: (H - botH) / H, inv: 0.46, msg: 0.6,
+				stat: clamp(128 / (W - sideW), 0.08, 0.3) } };   /* Status: the 13-column sidebar at 13 px */
 	}
 
 	function loadLayout() {
@@ -198,6 +199,16 @@
 		el.style.height = Math.max(0, r[3]) + 'px';
 	}
 
+	/* A layout saved before the Status window existed: put it left of the map (once) */
+	function withStat(st, r) {
+		function has(n) { return n === 'stat' || (n && typeof n === 'object' && (has(n.a) || has(n.b))); }
+		function put(n) { return n === 'main' ? { d: 'h', r: r, a: 'stat', b: 'main' } : (n && typeof n === 'object') ? { d: n.d, r: n.r, a: put(n.a), b: put(n.b) } : n; }
+		if (!st || st.v !== 2) return st;
+		st = JSON.parse(JSON.stringify(st));
+		if (st.multi && !has(st.multi)) st.multi = put(st.multi);
+		return st;
+	}
+
 	/* Windows are placed by the shared tiling window manager (rvip-wm.js) */
 	var wm = null;
 	function applyDom() { if (wm) wm.apply(); }
@@ -205,10 +216,10 @@
 		var s = defaultLayout().split;
 		wm = RvipWM({
 			area: $('game'), menu: $('btn-layout'),
-			wins: [{ id: 'main', title: 'Map' }, { id: 'inv', title: 'Inventory' }, { id: 'msg', title: 'Messages' }, { id: 'mon', title: 'Visible' }, { id: 'rec', title: 'Recall' }, { id: 'eqp', title: 'Equipment' }, { id: 'chr', title: 'Character' }],
-			multi: { d: 'v', r: s.bottom, a: { d: 'h', r: s.side, a: 'main', b: { d: 'v', r: s.inv, a: 'inv', b: 'mon' } }, b: 'msg' },
-			single: 'main',
-			state: L.wm,
+			wins: [{ id: 'main', title: 'Map' }, { id: 'stat', title: 'Status' }, { id: 'inv', title: 'Inventory' }, { id: 'msg', title: 'Messages' }, { id: 'mon', title: 'Visible' }, { id: 'rec', title: 'Recall' }, { id: 'eqp', title: 'Equipment' }, { id: 'chr', title: 'Character' }],
+			multi: { d: 'v', r: s.bottom, a: { d: 'h', r: s.side, a: { d: 'h', r: s.stat, a: 'stat', b: 'main' }, b: { d: 'v', r: s.inv, a: 'inv', b: 'mon' } }, b: 'msg' },
+			single: { d: 'h', r: s.stat, a: 'stat', b: 'main' },
+			state: withStat(L.wm, s.stat),
 			save: function (st) { L.wm = st; saveLayout(); },
 			layout: function (r) {
 				rects = r;
@@ -242,8 +253,9 @@
 			/* tile mode: the cells are the grid's; a wide font gets smaller to fit them */
 			else while (font > 6 && measure(font) > cw) font--;
 			/* The game fits its map view to the term (web_set_view()); 80x24 at least */
-			cols = clamp(Math.floor(box.w / cw), 80, 255);
-			rows = clamp(Math.floor(box.h / ch), 24, 255);
+			/* the canvas shows the map area only (O: sidebar columns, message row, status row) */
+			cols = clamp(Math.floor(box.w / cw) + O.x, 80, 255);
+			rows = clamp(Math.floor(box.h / ch) + O.y + O.b, 24, 255);
 		}
 		return { cols: cols, rows: rows, cw: cw, ch: ch, font: font, face: face(i) };
 	}
@@ -254,7 +266,7 @@
 	 */
 	function fitCanvas(i) {
 		var T = terms[i], box = inner(i);
-		var w = T.cols * T.cw, h = T.rows * T.ch;
+		var w = vis(T).w, h = vis(T).h;
 		var sc = Math.min(1, box.w / w, box.h / h);
 		T.cv.style.width = (w * sc) + 'px';
 		T.cv.style.height = (h * sc) + 'px';
@@ -270,10 +282,11 @@
 	/* (Re)size one term's canvas; resizing the canvas also blanks it */
 	function configureTerm(i, l, cols, rows) {
 		var cv = $('t-' + TERMS[i].id).querySelector('canvas');
-		cv.width = cols * l.cw * dpr;
-		cv.height = rows * l.ch * dpr;
+		cv.width = (cols - O.x) * l.cw * dpr;
+		cv.height = (rows - O.y - O.b) * l.ch * dpr;
 		var ctx = cv.getContext('2d', { alpha: false });
-		ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+		/* term cells at their place, shifted so the map area starts at 0, 0 (the rest falls outside) */
+		ctx.setTransform(dpr, 0, 0, dpr, -O.x * l.cw * dpr, -O.y * l.ch * dpr);
 		ctx.imageSmoothingEnabled = false;
 		ctx.textBaseline = 'middle';
 		ctx.textAlign = 'center';
@@ -293,6 +306,7 @@
 		configureTerm(0, l, l.cols, l.rows);
 		TERMS.forEach(function (d, i) { if (i) textPane(i, document.querySelector('#t-' + d.id + ' pre')); });
 		textPane(P_POP, document.querySelector('#pop pre'));
+		textPane(P_STAT, document.querySelector('#t-stat pre'));
 		applyFace(); popFont();
 	}
 
@@ -420,7 +434,10 @@
 	 * "\x06", the cursor cell "\x01" .. "\x06", a tile icon "\x07" + a c ta tc (hex)
 	 * + width in cells; then the rows in use.  Text size = the WM's body font-size
 	 * (A-/A+ per window); the pop-up has the Messages size. */
-	var P_POP = TERMS.length;
+	var P_POP = TERMS.length, P_STAT = TERMS.length + 1;
+	/* term 0 cells the canvas leaves out (main-web.c js_origin): sidebar columns, rows above, rows below */
+	var O = { x: 0, y: 0, b: 0 };
+	function vis(T) { return { w: (T.cols - O.x) * T.cw, h: (T.rows - O.y - O.b) * T.ch }; }
 	var txt = [];                /* pane -> {el, lines, n, end} */
 	var pop = { x: -1, y: -1 };  /* the pop-up's first cell on term 0 */
 	function textPane(p, el) { el.textContent = ''; txt[p] = { el: el, lines: [], n: 0, end: null }; }
@@ -468,9 +485,9 @@
 	function placePop() {
 		var P = $('pop'), T = terms[0];
 		if (P.hidden || !T || pop.x < 0 || !rects.main) return;
-		var sc = parseFloat(T.cv.style.width) / (T.cols * T.cw) || 1, dy = Math.round(pop.y * T.ch * sc);
+		var sc = parseFloat(T.cv.style.width) / vis(T).w || 1, dy = Math.max(0, Math.round((pop.y - O.y) * T.ch * sc));
 		P.style.marginTop = dy + 'px';
-		RvipWM.popup(P, { x: Math.round(pop.x * T.cw * sc) });
+		RvipWM.popup(P, { x: Math.max(0, Math.round((pop.x - O.x) * T.cw * sc)) });
 		P.style.maxHeight = Math.max(40, RvipWM.popupBox().h - dy) + 'px';
 	}
 	/* A click on a pop-up row: the game's mouse key at that term 0 cell (menus, item lists) */
@@ -714,6 +731,7 @@
 		},
 
 		fresh: function () { },
+		origin: function (x, y, b) { O = { x: x, y: y, b: b }; },
 		prompt: function (s) { RvipWM.prompt.text(s); },   /* term 0 row 0 over the map (main-web.c) */
 		line: function (p, y, s) {
 			var T = txt[p];
@@ -844,9 +862,9 @@
 	function onMouse(e) {
 		if (!app.running) return;
 		var T = terms[0], r = T.cv.getBoundingClientRect();
-		var sx = r.width / (T.cols * T.cw), sy = r.height / (T.rows * T.ch);
-		var x = Math.floor((e.clientX - r.left) / sx / T.cw);
-		var y = Math.floor((e.clientY - r.top) / sy / T.ch);
+		var sx = r.width / vis(T).w, sy = r.height / vis(T).h;
+		var x = Math.floor((e.clientX - r.left) / sx / T.cw) + O.x;
+		var y = Math.floor((e.clientY - r.top) / sy / T.ch) + O.y;
 		if (x < 0 || y < 0 || x >= T.cols || y >= T.rows) return;
 		if (e.button === 1) return;
 		/* Sangband's MOUSE_L_CLICK 2, MOUSE_R_CLICK 3, MOUSE_L_DBLCLICK 4 */

@@ -526,4 +526,16 @@ the stage agents (the orchestrator pushes `memmaker/sangband` main, roguelikes
   tiles None → glyphs, recall, item prompt, Enter menu + click, `C` sheet,
   store, A−/A+, divider drag, font, map zoom, reload. `web/test/*.mjs`
   still read a shadow of `qb.text` (term 0 only): pop-up text now comes
-  through `qb.line` (pane 7): update `lib.mjs` before the next cloud run.
+  through `qb.line` (pane 7): `lib.mjs` updated (below).
+- **Status window (rule 6, sidebar + status line)**: pane 8 (`WEB_STAT`,
+  window `stat`): `web_status()` sends the sidebar (term 0 rows ROW_MAP..,
+  columns 0..COL_MAP-1) to its last used row, a blank row, then the status
+  line (last row) split into groups (runs broken at 2+ blanks), one per
+  line; only while no pop-up is up. `js_origin(COL_MAP, ROW_MAP, 1)` (from
+  `init_web`) tells the page which term 0 cells the canvas leaves out: the
+  canvas is (cols-13)x(rows-2) cells, drawn with a translated context (the
+  sidebar/status draws fall outside), term sizes asked = map area + origin,
+  clicks and the pop-up position add/subtract the origin. WM: `stat` left of
+  the map in multi and single; a saved layout without it gets it inserted
+  left of `main` (`withStat()`). `web/test/lib.mjs`: `__screen(0)` lays the
+  pop-up (pane 7 at `popAt`) over term 0, `__pane(p)`, `status(page)`.
