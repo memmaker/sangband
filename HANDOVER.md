@@ -59,7 +59,7 @@
   `p_ptr->leaving = FALSE`; `disturb()` (`cave.c`) calls `explore_reset()`;
   `process_command()` `case 'H': case 'O':`. `do_cmd_go_up/down()`
   (`cmd2.c`) walk to the nearest known staircase/shaft when not on one
-  (and stop there: press again to take it, RVIP-Finetuning "Movement").
+  (and stop there: press again to take it, `RVIP.md` stage 2).
 - **Known grid**: `cave_info & CAVE_MARK` or the explorer's own
   `explore_seen[][]` (every `CAVE_SEEN|CAVE_MARK` grid at each step).
   Passable: `TF_PASSABLE` terrain (floor, rubble, water, trees, open doors,
